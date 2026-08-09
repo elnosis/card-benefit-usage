@@ -53,7 +53,6 @@
             gap: 6px;
         }
 
-        /* 옵션 메뉴 스타일 */
         .options-container {
             position: relative;
         }
@@ -83,7 +82,7 @@
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
             z-index: 100;
-            min-width: 160px;
+            min-width: 180px;
             overflow: hidden;
         }
 
@@ -204,7 +203,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
 
         .card-title-group {
@@ -248,55 +247,53 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 8px;
         }
 
-        .performance-toggle {
-            display: flex;
-            align-items: center;
-            gap: 6px;
+        .performance-label {
             font-size: 0.85rem;
             font-weight: 600;
-            cursor: pointer;
+            color: #555;
+            white-space: nowrap;
         }
 
-        .performance-badge {
-            font-size: 0.75rem;
-            font-weight: bold;
-            padding: 3px 8px;
-            border-radius: 12px;
-        }
-
-        .badge-fulfilled {
-            background-color: #e8f5e9;
-            color: var(--success-color);
-        }
-
-        .badge-unfulfilled {
-            background-color: #ffebee;
-            color: var(--warning-color);
-        }
-
-        .target-spinner-row {
+        .benefit-list {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 0.8rem;
-            color: #666;
-            border-top: 1px dashed #e0e0e0;
-            padding-top: 6px;
+            flex-direction: column;
+            gap: 10px;
         }
 
-        .benefit-limit-box {
+        .benefit-item {
             background-color: #fff5f7;
             border-radius: 8px;
             padding: 10px 12px;
-            margin-bottom: 12px;
+        }
+
+        .benefit-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .benefit-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+
+        .benefit-meta {
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 4px;
         }
 
         .benefit-limit-row {
             display: flex;
             justify-content: space-between;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             margin-bottom: 4px;
         }
 
@@ -310,7 +307,6 @@
             height: 8px;
             border-radius: 4px;
             overflow: hidden;
-            margin-top: 6px;
         }
 
         .progress-bar-fill {
@@ -320,46 +316,24 @@
             transition: width 0.3s ease;
         }
 
-        .benefit-section {
-            border-top: 1px dashed var(--border-color);
-            padding-top: 12px;
-            margin-top: 6px;
-        }
-
-        .benefit-title {
+        .no-limit-text {
             font-size: 0.8rem;
             color: #888;
-            margin-bottom: 8px;
-            font-weight: 600;
         }
 
-        .benefit-scroll-container {
-            display: flex;
-            gap: 8px;
-            overflow-x: auto;
-            padding-bottom: 6px;
-            scrollbar-width: thin;
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            color: #888;
+            font-size: 0.95rem;
+            line-height: 1.6;
         }
 
-        .benefit-chip {
-            flex: 0 0 auto;
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 6px 10px;
-            font-size: 0.8rem;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            white-space: nowrap;
+        .empty-state strong {
+            color: var(--primary-color);
         }
-
-        .benefit-chip .date { color: #888; font-size: 0.75rem; }
-        .benefit-chip .type { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-        .type-discount { background-color: #ffebee; color: #d32f2f; }
-        .type-point { background-color: #e8f5e9; color: #2e7d32; }
-        .type-cashback { background-color: #e3f2fd; color: #1976d2; }
-        .benefit-chip .amount { font-weight: bold; color: #2c3e50; }
 
         .record-card {
             background-color: var(--card-bg);
@@ -434,7 +408,21 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            flex: 1;
+            min-width: 0;
         }
+
+        .type {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .type-discount, .type-청구할인, .type-현장할인 { background-color: #ffebee; color: #d32f2f; }
+        .type-point, .type-적립 { background-color: #e8f5e9; color: #2e7d32; }
+        .type-cashback, .type-기타 { background-color: #e3f2fd; color: #1976d2; }
 
         .delete-btn {
             background: none;
@@ -442,6 +430,16 @@
             color: #ff5252;
             cursor: pointer;
             font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        .history-benefit-name {
+            font-size: 0.8rem;
+            color: #555;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 140px;
         }
     </style>
 </head>
@@ -451,18 +449,19 @@
     <header>
         <h1>🍒 카드 피커 체리</h1>
         
-        <!-- 우측 상단 옵션 메뉴 버튼 -->
         <div class="options-container">
             <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
             <div class="options-dropdown" id="options-dropdown">
+                <button onclick="triggerCardBenefitsImport()">📥 카드 혜택 가져오기</button>
                 <button onclick="exportData()">📤 데이터 내보내기</button>
-                <button onclick="triggerImport()">📥 데이터 가져오기</button>
+                <button onclick="triggerImport()">📥 사용 기록 가져오기</button>
             </div>
         </div>
     </header>
 
     <!-- 숨겨진 파일 업로드 인풋 -->
     <input type="file" id="import-file-input" accept=".json" style="display: none;" onchange="importData(event)">
+    <input type="file" id="csv-import-input" accept=".csv" style="display: none;" onchange="importCardBenefitsCSV(event)">
 
     <div class="tab-menu">
         <button class="tab-btn active" onclick="switchTab('tab-status', this)">혜택 사용 현황</button>
@@ -487,152 +486,7 @@
         </div>
 
         <div class="card-list" id="card-list">
-            <!-- 카드 1 -->
-            <div class="card-item" data-id="card-1">
-                <div class="card-header">
-                    <div class="card-title-group">
-                        <span class="card-name">신한 Deep Dream</span>
-                    </div>
-                    <div class="order-btns">
-                        <button class="order-btn" onclick="moveCard(this, 'up')">▲</button>
-                        <button class="order-btn" onclick="moveCard(this, 'down')">▼</button>
-                    </div>
-                </div>
-                
-                <div class="performance-box">
-                    <div class="performance-top-row">
-                        <label class="performance-toggle">
-                            <input type="checkbox" id="perf-check-card-1" onchange="togglePerformance('card-1', this.checked)">
-                            <span>전월 실적 달성 여부</span>
-                        </label>
-                        <span id="perf-badge-card-1" class="performance-badge badge-unfulfilled">미달성</span>
-                    </div>
-                    <div class="target-spinner-row">
-                        <span>카드 실적 기준:</span>
-                        <select id="perf-target-card-1" class="spinner-select" onchange="changePerformanceTarget('card-1', this.value)">
-                            <option value="none">실적 조건 없음</option>
-                            <option value="20만 원">20만 원</option>
-                            <option value="30만 원" selected>30만 원</option>
-                            <option value="40만 원">40만 원</option>
-                            <option value="50만 원">50만 원</option>
-                            <option value="70만 원">70만 원</option>
-                            <option value="100만 원">100만 원</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="benefit-limit-box">
-                    <div class="benefit-limit-row">
-                        <span>혜택 받은 금액: <strong id="used-card-1">0원</strong> / 한도 30,000원</span>
-                        <span class="benefit-remaining">잔여량: <span id="remain-card-1">30,000원</span></span>
-                    </div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" id="bar-card-1"></div>
-                    </div>
-                </div>
-                <div class="benefit-section">
-                    <div class="benefit-title">이용 내역</div>
-                    <div class="benefit-scroll-container" id="chips-card-1"></div>
-                </div>
-            </div>
-
-            <!-- 카드 2 -->
-            <div class="card-item" data-id="card-2">
-                <div class="card-header">
-                    <div class="card-title-group">
-                        <span class="card-name">삼성 taptap O</span>
-                    </div>
-                    <div class="order-btns">
-                        <button class="order-btn" onclick="moveCard(this, 'up')">▲</button>
-                        <button class="order-btn" onclick="moveCard(this, 'down')">▼</button>
-                    </div>
-                </div>
-
-                <div class="performance-box">
-                    <div class="performance-top-row">
-                        <label class="performance-toggle">
-                            <input type="checkbox" id="perf-check-card-2" onchange="togglePerformance('card-2', this.checked)">
-                            <span>전월 실적 달성 여부</span>
-                        </label>
-                        <span id="perf-badge-card-2" class="performance-badge badge-unfulfilled">미달성</span>
-                    </div>
-                    <div class="target-spinner-row">
-                        <span>카드 실적 기준:</span>
-                        <select id="perf-target-card-2" class="spinner-select" onchange="changePerformanceTarget('card-2', this.value)">
-                            <option value="none">실적 조건 없음</option>
-                            <option value="20만 원">20만 원</option>
-                            <option value="30만 원" selected>30만 원</option>
-                            <option value="40만 원">40만 원</option>
-                            <option value="50만 원">50만 원</option>
-                            <option value="70만 원">70만 원</option>
-                            <option value="100만 원">100만 원</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="benefit-limit-box">
-                    <div class="benefit-limit-row">
-                        <span>혜택 받은 금액: <strong id="used-card-2">0원</strong> / 한도 20,000원</span>
-                        <span class="benefit-remaining">잔여량: <span id="remain-card-2">20,000원</span></span>
-                    </div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" id="bar-card-2"></div>
-                    </div>
-                </div>
-                <div class="benefit-section">
-                    <div class="benefit-title">이용 내역</div>
-                    <div class="benefit-scroll-container" id="chips-card-2"></div>
-                </div>
-            </div>
-
-            <!-- 카드 3 -->
-            <div class="card-item" data-id="card-3">
-                <div class="card-header">
-                    <div class="card-title-group">
-                        <span class="card-name">KB국민 노리2 체크</span>
-                    </div>
-                    <div class="order-btns">
-                        <button class="order-btn" onclick="moveCard(this, 'up')">▲</button>
-                        <button class="order-btn" onclick="moveCard(this, 'down')">▼</button>
-                    </div>
-                </div>
-
-                <div class="performance-box">
-                    <div class="performance-top-row">
-                        <label class="performance-toggle">
-                            <input type="checkbox" id="perf-check-card-3" onchange="togglePerformance('card-3', this.checked)">
-                            <span>전월 실적 달성 여부</span>
-                        </label>
-                        <span id="perf-badge-card-3" class="performance-badge badge-unfulfilled">미달성</span>
-                    </div>
-                    <div class="target-spinner-row">
-                        <span>카드 실적 기준:</span>
-                        <select id="perf-target-card-3" class="spinner-select" onchange="changePerformanceTarget('card-3', this.value)">
-                            <option value="none">실적 조건 없음</option>
-                            <option value="20만 원" selected>20만 원</option>
-                            <option value="30만 원">30만 원</option>
-                            <option value="40만 원">40만 원</option>
-                            <option value="50만 원">50만 원</option>
-                            <option value="70만 원">70만 원</option>
-                            <option value="100만 원">100만 원</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="benefit-limit-box">
-                    <div class="benefit-limit-row">
-                        <span>혜택 받은 금액: <strong id="used-card-3">0원</strong> / 한도 10,000원</span>
-                        <span class="benefit-remaining">잔여량: <span id="remain-card-3">10,000원</span></span>
-                    </div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" id="bar-card-3"></div>
-                    </div>
-                </div>
-                <div class="benefit-section">
-                    <div class="benefit-title">이용 내역</div>
-                    <div class="benefit-scroll-container" id="chips-card-3"></div>
-                </div>
-            </div>
+            <!-- 동적 카드 목록 -->
         </div>
     </div>
 
@@ -643,10 +497,14 @@
             <form class="record-form" id="benefit-form" onsubmit="handleFormSubmit(event)">
                 <div class="form-group">
                     <label>카드 선택</label>
-                    <select class="form-control" id="form-card" required>
-                        <option value="card-1">신한 Deep Dream</option>
-                        <option value="card-2">삼성 taptap O</option>
-                        <option value="card-3">KB국민 노리2 체크</option>
+                    <select class="form-control" id="form-card" required onchange="updateBenefitOptions()">
+                        <option value="">카드를 선택하세요</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>혜택 선택</label>
+                    <select class="form-control" id="form-benefit" required>
+                        <option value="">카드를 먼저 선택하세요</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -654,16 +512,8 @@
                     <input type="date" class="form-control" id="form-date" required>
                 </div>
                 <div class="form-group">
-                    <label>혜택 카테고리</label>
-                    <select class="form-control" id="form-category" required>
-                        <option value="discount">✂️ 할인</option>
-                        <option value="point">🪙 적립</option>
-                        <option value="cashback">💵 환급</option>
-                    </select>
-                </div>
-                <div class="form-group">
                     <label>혜택 금액 (원)</label>
-                    <input type="number" class="form-control" id="form-amount" placeholder="예: 1500" required>
+                    <input type="number" class="form-control" id="form-amount" placeholder="예: 1500" required min="0">
                 </div>
                 <button type="submit" class="submit-btn">저장하기</button>
             </form>
@@ -683,24 +533,15 @@
             .catch(err => console.error('Service Worker Registration Failed!', err));
     }
 
-    const cardLimits = { 'card-1': 30000, 'card-2': 20000, 'card-3': 10000 };
+    // ===== 데이터 저장소 =====
+    // cardBenefitsData: { "카드명": { "30만원": [ {name, type, rate, limit, option}, ... ], ... }, ... }
+    let cardBenefitsData = JSON.parse(localStorage.getItem('card_picker_cherry_benefits')) || null;
 
-    let benefitData = JSON.parse(localStorage.getItem('card_picker_cherry_data')) || [
-        { id: 1, cardId: 'card-1', date: '2026-08-01', category: 'discount', categoryName: '✂️ 할인', amount: 3500 },
-        { id: 2, cardId: 'card-1', date: '2026-08-03', category: 'point', categoryName: '🪙 적립', amount: 1850 },
-        { id: 3, cardId: 'card-2', date: '2026-08-02', category: 'discount', categoryName: '✂️ 할인', amount: 5000 },
-        { id: 4, cardId: 'card-3', date: '2026-08-06', category: 'cashback', categoryName: '💵 환급', amount: 2000 }
-    ];
+    // benefitData: 사용 기록 [{ id, cardName, benefitName, type, date, amount }]
+    let benefitData = JSON.parse(localStorage.getItem('card_picker_cherry_data')) || [];
 
-    let performanceData = JSON.parse(localStorage.getItem('card_picker_cherry_perf')) || {
-        '2026-08': { 'card-1': true, 'card-2': false, 'card-3': true }
-    };
-
-    let performanceTargets = JSON.parse(localStorage.getItem('card_picker_cherry_targets')) || {
-        'card-1': '30만 원',
-        'card-2': '30만 원',
-        'card-3': '20만 원'
-    };
+    // performanceData: { "2026-08": { "카드명": "30만원", ... }, ... }  // 선택한 전월 실적 티어
+    let performanceData = JSON.parse(localStorage.getItem('card_picker_cherry_perf')) || {};
 
     let myChart = null;
 
@@ -711,8 +552,8 @@
         const dd = String(today.getDate()).padStart(2, '0');
         document.getElementById("form-date").value = `${yyyy}-${mm}-${dd}`;
 
-        loadCardOrder();
         renderAll();
+        populateFormCards();
     });
 
     // 외부 클릭 시 옵션 드롭다운 닫기
@@ -728,14 +569,104 @@
         document.getElementById("options-dropdown").classList.toggle("show");
     }
 
-    /* --- 데이터 내보내기 & 가져오기 --- */
+    /* --- 카드 혜택 CSV 가져오기 --- */
+    function triggerCardBenefitsImport() {
+        document.getElementById("csv-import-input").click();
+    }
+
+    function importCardBenefitsCSV(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const text = e.target.result;
+                const parsed = parseCSV(text);
+                if (!parsed || Object.keys(parsed).length === 0) {
+                    alert("유효한 카드 혜택 데이터를 찾지 못했습니다. CSV 형식을 확인해 주세요.");
+                    return;
+                }
+                cardBenefitsData = parsed;
+                localStorage.setItem('card_picker_cherry_benefits', JSON.stringify(cardBenefitsData));
+                // 카드 순서 초기화
+                localStorage.removeItem("card_order_cherry");
+                renderAll();
+                populateFormCards();
+                alert(`카드 혜택을 성공적으로 불러왔습니다!\n총 ${Object.keys(cardBenefitsData).length}개 카드`);
+            } catch (err) {
+                alert("CSV 파일을 읽는 중 오류가 발생했습니다: " + err.message);
+            }
+            event.target.value = "";
+        };
+        reader.readAsText(file, 'UTF-8');
+    }
+
+    function parseCSV(text) {
+        const lines = text.trim().split(/\r?\n/);
+        if (lines.length < 2) return null;
+
+        // 헤더 파싱
+        const headers = parseCSVLine(lines[0]);
+        const expected = ['카드명', '실적', '혜택명', '할인유형', '할인율또는금액', '월간한도', '옵션'];
+        // 간단히 인덱스로 매핑 (순서 가정)
+        const cards = {};
+
+        for (let i = 1; i < lines.length; i++) {
+            const cols = parseCSVLine(lines[i]);
+            if (cols.length < 6) continue;
+
+            const cardName = cols[0].trim();
+            const tier = cols[1].trim();
+            const benefitName = cols[2].trim();
+            const type = cols[3].trim();
+            const rate = cols[4].trim();
+            const limit = cols[5].trim();
+            const option = cols.length > 6 ? cols[6].trim() : '';
+
+            if (!cardName || !tier || !benefitName) continue;
+
+            if (!cards[cardName]) cards[cardName] = {};
+            if (!cards[cardName][tier]) cards[cardName][tier] = [];
+
+            cards[cardName][tier].push({
+                name: benefitName,
+                type: type,
+                rate: rate,
+                limit: limit,
+                option: option
+            });
+        }
+        return cards;
+    }
+
+    function parseCSVLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                result.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        result.push(current);
+        return result;
+    }
+
+    /* --- 데이터 내보내기 & 사용기록 가져오기 --- */
     function exportData() {
         const exportObj = {
-            version: "1.0",
+            version: "2.0",
             exportDate: new Date().toISOString(),
+            cardBenefitsData: cardBenefitsData,
             benefitData: benefitData,
             performanceData: performanceData,
-            performanceTargets: performanceTargets,
             cardOrder: JSON.parse(localStorage.getItem("card_order_cherry")) || []
         };
 
@@ -762,18 +693,21 @@
         reader.onload = function(e) {
             try {
                 const imported = JSON.parse(e.target.result);
-                if (imported.benefitData && imported.performanceData) {
+                if (imported.benefitData) {
                     benefitData = imported.benefitData;
-                    performanceData = imported.performanceData;
-                    if (imported.performanceTargets) performanceTargets = imported.performanceTargets;
+                    if (imported.performanceData) performanceData = imported.performanceData;
+                    if (imported.cardBenefitsData) {
+                        cardBenefitsData = imported.cardBenefitsData;
+                        localStorage.setItem('card_picker_cherry_benefits', JSON.stringify(cardBenefitsData));
+                    }
                     if (imported.cardOrder) localStorage.setItem("card_order_cherry", JSON.stringify(imported.cardOrder));
 
                     saveData();
-                    loadCardOrder();
                     renderAll();
+                    populateFormCards();
                     alert("데이터를 성공적으로 불러왔습니다!");
                 } else {
-                    alert("유효하지 않은 백업 파일 형입니다.");
+                    alert("유효하지 않은 백업 파일 형식입니다.");
                 }
             } catch (err) {
                 alert("파일을 읽는 중 오류가 발생했습니다: " + err.message);
@@ -786,7 +720,9 @@
     function saveData() {
         localStorage.setItem('card_picker_cherry_data', JSON.stringify(benefitData));
         localStorage.setItem('card_picker_cherry_perf', JSON.stringify(performanceData));
-        localStorage.setItem('card_picker_cherry_targets', JSON.stringify(performanceTargets));
+        if (cardBenefitsData) {
+            localStorage.setItem('card_picker_cherry_benefits', JSON.stringify(cardBenefitsData));
+        }
     }
 
     function switchTab(tabId, btn) {
@@ -818,90 +754,204 @@
         renderHistoryList();
     }
 
-    function togglePerformance(cardId, isChecked) {
+    /* --- 한도 숫자 추출 --- */
+    function parseLimitAmount(limitStr) {
+        if (!limitStr || limitStr === '무제한' || limitStr.trim() === '') return null;
+        // "통합 15000원", "10000원", "2000마일" 등에서 숫자 추출
+        const match = limitStr.replace(/,/g, '').match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : null;
+    }
+
+    /* --- 카드 순서 --- */
+    function getCardOrder() {
+        if (!cardBenefitsData) return [];
+        const saved = JSON.parse(localStorage.getItem("card_order_cherry"));
+        const allCards = Object.keys(cardBenefitsData);
+        if (!saved || !Array.isArray(saved)) return allCards;
+        // 저장된 순서 유지 + 새로 추가된 카드 뒤에 붙이기
+        const ordered = saved.filter(c => allCards.includes(c));
+        allCards.forEach(c => { if (!ordered.includes(c)) ordered.push(c); });
+        return ordered;
+    }
+
+    function saveCardOrder() {
+        const items = document.querySelectorAll("#card-list .card-item");
+        const order = Array.from(items).map(item => item.getAttribute("data-card"));
+        localStorage.setItem("card_order_cherry", JSON.stringify(order));
+    }
+
+    function moveCard(button, direction) {
+        const item = button.closest(".card-item");
+        const cardList = document.getElementById("card-list");
+        if (direction === "up" && item.previousElementSibling) {
+            cardList.insertBefore(item, item.previousElementSibling);
+        } else if (direction === "down" && item.nextElementSibling) {
+            cardList.insertBefore(item.nextElementSibling, item);
+        }
+        saveCardOrder();
+    }
+
+    /* --- 전월 실적 티어 변경 --- */
+    function changePerformanceTier(cardName, tier) {
         const selectedMonth = document.getElementById('month-spinner').value;
         if (selectedMonth === 'ALL') return;
 
         if (!performanceData[selectedMonth]) {
             performanceData[selectedMonth] = {};
         }
-
-        performanceData[selectedMonth][cardId] = isChecked;
+        performanceData[selectedMonth][cardName] = tier;
         saveData();
-        updatePerformanceUI(cardId, isChecked);
+        renderMonthStatus(selectedMonth);
     }
 
-    function changePerformanceTarget(cardId, targetValue) {
-        performanceTargets[cardId] = targetValue;
-        saveData();
-    }
-
-    function updatePerformanceUI(cardId, isFulfilled) {
-        const checkbox = document.getElementById(`perf-check-${cardId}`);
-        const badge = document.getElementById(`perf-badge-${cardId}`);
-        const targetSpinner = document.getElementById(`perf-target-${cardId}`);
-
-        if (checkbox) checkbox.checked = isFulfilled;
-        if (targetSpinner && performanceTargets[cardId]) {
-            targetSpinner.value = performanceTargets[cardId];
-        }
-
-        if (badge) {
-            if (isFulfilled) {
-                badge.innerText = '달성 완료';
-                badge.className = 'performance-badge badge-fulfilled';
-            } else {
-                badge.innerText = '미달성';
-                badge.className = 'performance-badge badge-unfulfilled';
-            }
-        }
-    }
-
+    /* --- 월별 현황 렌더링 --- */
     function renderMonthStatus(targetMonth) {
+        const cardListEl = document.getElementById('card-list');
+        cardListEl.innerHTML = '';
+
+        if (!cardBenefitsData || Object.keys(cardBenefitsData).length === 0) {
+            cardListEl.innerHTML = `
+                <div class="empty-state">
+                    아직 카드 혜택 정보가 없습니다.<br>
+                    우측 상단 <strong>⋮</strong> 메뉴에서<br>
+                    <strong>「카드 혜택 가져오기」</strong>로 CSV 파일을 불러와 주세요.
+                </div>`;
+            return;
+        }
+
         const monthPerf = performanceData[targetMonth] || {};
+        const cardOrder = getCardOrder();
 
-        Object.keys(cardLimits).forEach(cardId => {
-            const limit = cardLimits[cardId];
-            const items = benefitData.filter(item => item.cardId === cardId && item.date.startsWith(targetMonth));
-            
-            const usedTotal = items.reduce((sum, item) => sum + item.amount, 0);
-            const remain = Math.max(0, limit - usedTotal);
-            const percent = Math.min(100, Math.round((usedTotal / limit) * 100));
+        cardOrder.forEach(cardName => {
+            const tiers = cardBenefitsData[cardName];
+            if (!tiers) return;
 
-            document.getElementById(`used-${cardId}`).innerText = `${usedTotal.toLocaleString()}원`;
-            document.getElementById(`remain-${cardId}`).innerText = `${remain.toLocaleString()}원`;
-            document.getElementById(`bar-${cardId}`).style.width = `${percent}%`;
+            const tierKeys = Object.keys(tiers).sort((a, b) => {
+                // 숫자 기준 정렬 (0만원, 20만원, 30만원 ...)
+                const na = parseInt(a) || 0;
+                const nb = parseInt(b) || 0;
+                return na - nb;
+            });
 
-            const isFulfilled = !!monthPerf[cardId];
-            updatePerformanceUI(cardId, isFulfilled);
+            // 현재 선택된 티어 (없으면 가장 낮은 티어)
+            let selectedTier = monthPerf[cardName] || tierKeys[0];
+            if (!tiers[selectedTier]) selectedTier = tierKeys[0];
 
-            const container = document.getElementById(`chips-${cardId}`);
-            container.innerHTML = '';
+            const benefits = tiers[selectedTier] || [];
 
-            if (items.length === 0) {
-                container.innerHTML = '<span style="font-size:0.8rem; color:#aaa;">해당 월의 혜택 내역이 없습니다.</span>';
-                return;
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'card-item';
+            cardDiv.setAttribute('data-card', cardName);
+
+            // 헤더
+            let html = `
+                <div class="card-header">
+                    <div class="card-title-group">
+                        <span class="card-name">${cardName}</span>
+                    </div>
+                    <div class="order-btns">
+                        <button class="order-btn" onclick="moveCard(this, 'up')">▲</button>
+                        <button class="order-btn" onclick="moveCard(this, 'down')">▼</button>
+                    </div>
+                </div>
+
+                <div class="performance-box">
+                    <div class="performance-top-row">
+                        <span class="performance-label">전월 실적</span>
+                        <select class="spinner-select" onchange="changePerformanceTier('${cardName.replace(/'/g, "\\'")}', this.value)">
+            `;
+
+            tierKeys.forEach(t => {
+                const selected = t === selectedTier ? 'selected' : '';
+                html += `<option value="${t}" ${selected}>${t}</option>`;
+            });
+
+            html += `
+                        </select>
+                    </div>
+                </div>
+
+                <div class="benefit-list">
+            `;
+
+            if (benefits.length === 0) {
+                html += `<div style="font-size:0.85rem;color:#aaa;">이 실적 구간에 해당하는 혜택이 없습니다.</div>`;
+            } else {
+                benefits.forEach(ben => {
+                    const used = benefitData
+                        .filter(item => item.cardName === cardName &&
+                                        item.benefitName === ben.name &&
+                                        item.date.startsWith(targetMonth))
+                        .reduce((sum, item) => sum + item.amount, 0);
+
+                    const limitNum = parseLimitAmount(ben.limit);
+                    const isUnlimited = !limitNum;
+                    const remain = isUnlimited ? null : Math.max(0, limitNum - used);
+                    const percent = isUnlimited ? 0 : Math.min(100, Math.round((used / limitNum) * 100));
+
+                    const typeClass = 'type-' + (ben.type || 'discount').replace(/\s/g, '');
+
+                    html += `
+                        <div class="benefit-item">
+                            <div class="benefit-item-header">
+                                <span class="benefit-name">${ben.name}</span>
+                                <span class="type ${typeClass}">${ben.type || ''}</span>
+                            </div>
+                            <div class="benefit-meta">${ben.rate || ''} ${ben.option ? '(옵션 ' + ben.option + ')' : ''}</div>
+                    `;
+
+                    if (isUnlimited) {
+                        html += `
+                            <div class="benefit-limit-row">
+                                <span>사용 금액: <strong>${used.toLocaleString()}원</strong></span>
+                                <span class="no-limit-text">${ben.limit || '한도 없음'}</span>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="benefit-limit-row">
+                                <span>사용: <strong>${used.toLocaleString()}원</strong> / ${limitNum.toLocaleString()}원</span>
+                                <span class="benefit-remaining">잔여: ${remain.toLocaleString()}원</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width:${percent}%"></div>
+                            </div>
+                        `;
+                    }
+
+                    html += `</div>`;
+                });
             }
 
-            items.forEach(item => {
-                const dateStr = item.date.slice(5).replace('-', '.');
-                const chip = document.createElement('div');
-                chip.className = 'benefit-chip';
-                chip.innerHTML = `
-                    <span class="date">${dateStr}</span>
-                    <span class="type type-${item.category}">${item.categoryName}</span>
-                    <span class="amount">${item.amount.toLocaleString()}원</span>
-                `;
-                container.appendChild(chip);
-            });
+            html += `</div>`;
+            cardDiv.innerHTML = html;
+            cardListEl.appendChild(cardDiv);
         });
     }
 
+    /* --- 차트 --- */
     function renderChart() {
+        if (!cardBenefitsData) {
+            if (myChart) { myChart.destroy(); myChart = null; }
+            return;
+        }
+
         const months = ['2026-06', '2026-07', '2026-08'];
-        const card1Data = months.map(m => benefitData.filter(i => i.cardId === 'card-1' && i.date.startsWith(m)).reduce((s, i) => s + i.amount, 0));
-        const card2Data = months.map(m => benefitData.filter(i => i.cardId === 'card-2' && i.date.startsWith(m)).reduce((s, i) => s + i.amount, 0));
-        const card3Data = months.map(m => benefitData.filter(i => i.cardId === 'card-3' && i.date.startsWith(m)).reduce((s, i) => s + i.amount, 0));
+        const cardNames = getCardOrder();
+        const colors = ['#e91e63', '#ff6090', '#ffb2c9', '#7c4dff', '#536dfe', '#40c4ff', '#69f0ae'];
+
+        const datasets = cardNames.map((name, idx) => {
+            const data = months.map(m =>
+                benefitData
+                    .filter(i => i.cardName === name && i.date.startsWith(m))
+                    .reduce((s, i) => s + i.amount, 0)
+            );
+            return {
+                label: name.length > 12 ? name.slice(0, 12) + '…' : name,
+                data: data,
+                backgroundColor: colors[idx % colors.length]
+            };
+        });
 
         const ctx = document.getElementById('benefitChart').getContext('2d');
         if (myChart) myChart.destroy();
@@ -910,60 +960,93 @@
             type: 'bar',
             data: {
                 labels: ['6월', '7월', '8월'],
-                datasets: [
-                    { label: '신한 Deep Dream', data: card1Data, backgroundColor: '#e91e63' },
-                    { label: '삼성 taptap O', data: card2Data, backgroundColor: '#ff6090' },
-                    { label: 'KB국민 노리2', data: card3Data, backgroundColor: '#ffb2c9' }
-                ]
+                datasets: datasets
             },
             options: {
                 responsive: true,
-                scales: { x: { stacked: false }, y: { beginAtZero: true } }
+                scales: {
+                    x: { stacked: false },
+                    y: { beginAtZero: true }
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+                }
             }
         });
     }
 
-    function renderHistoryList() {
-        const historyList = document.getElementById('history-list');
-        historyList.innerHTML = '';
+    /* --- 기록 폼 --- */
+    function populateFormCards() {
+        const select = document.getElementById('form-card');
+        select.innerHTML = '<option value="">카드를 선택하세요</option>';
+        if (!cardBenefitsData) return;
 
-        if (benefitData.length === 0) {
-            historyList.innerHTML = '<div style="font-size:0.85rem; color:#888; text-align:center; padding:10px;">등록된 내역이 없습니다.</div>';
+        getCardOrder().forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            select.appendChild(opt);
+        });
+        updateBenefitOptions();
+    }
+
+    function updateBenefitOptions() {
+        const cardName = document.getElementById('form-card').value;
+        const benefitSelect = document.getElementById('form-benefit');
+        benefitSelect.innerHTML = '';
+
+        if (!cardName || !cardBenefitsData || !cardBenefitsData[cardName]) {
+            benefitSelect.innerHTML = '<option value="">카드를 먼저 선택하세요</option>';
             return;
         }
 
-        const cardNames = { 'card-1': '신한 Deep Dream', 'card-2': '삼성 taptap O', 'card-3': 'KB국민 노리2 체크' };
+        // 모든 티어의 혜택을 중복 없이 모음
+        const benefitMap = new Map();
+        Object.values(cardBenefitsData[cardName]).forEach(benefits => {
+            benefits.forEach(b => {
+                if (!benefitMap.has(b.name)) {
+                    benefitMap.set(b.name, b);
+                }
+            });
+        });
 
-        benefitData.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'record-history-item';
-            div.innerHTML = `
-                <div class="record-history-left">
-                    <span class="type type-${item.category}">${item.categoryName}</span>
-                    <div>
-                        <strong style="display:block; font-size:0.85rem;">${cardNames[item.cardId]}</strong>
-                        <span style="font-size:0.75rem; color:#888;">${item.date}</span>
-                    </div>
-                </div>
-                <div>
-                    <span style="font-weight:bold; margin-right:8px;">${item.amount.toLocaleString()}원</span>
-                    <button class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
-                </div>
-            `;
-            historyList.appendChild(div);
+        benefitSelect.innerHTML = '<option value="">혜택을 선택하세요</option>';
+        benefitMap.forEach((b, name) => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = `${name} (${b.type})`;
+            opt.dataset.type = b.type;
+            benefitSelect.appendChild(opt);
         });
     }
 
     function handleFormSubmit(e) {
         e.preventDefault();
-        const cardId = document.getElementById('form-card').value;
-        const date = document.getElementById('form-date').value;
-        const categorySelect = document.getElementById('form-category');
-        const category = categorySelect.value;
-        const categoryName = categorySelect.options[categorySelect.selectedIndex].text;
-        const amount = Number(document.getElementById('form-amount').value);
+        if (!cardBenefitsData) {
+            alert('먼저 카드 혜택 CSV를 가져와 주세요.');
+            return;
+        }
 
-        benefitData.push({ id: Date.now(), cardId, date, category, categoryName, amount });
+        const cardName = document.getElementById('form-card').value;
+        const benefitName = document.getElementById('form-benefit').value;
+        const date = document.getElementById('form-date').value;
+        const amount = Number(document.getElementById('form-amount').value);
+        const benefitSelect = document.getElementById('form-benefit');
+        const type = benefitSelect.options[benefitSelect.selectedIndex]?.dataset?.type || '';
+
+        if (!cardName || !benefitName || !date || amount < 0) {
+            alert('모든 항목을 올바르게 입력해 주세요.');
+            return;
+        }
+
+        benefitData.push({
+            id: Date.now(),
+            cardName,
+            benefitName,
+            type,
+            date,
+            amount
+        });
         saveData();
         renderAll();
         document.getElementById('form-amount').value = '';
@@ -975,31 +1058,38 @@
         renderAll();
     }
 
-    const cardList = document.getElementById("card-list");
-    function moveCard(button, direction) {
-        const item = button.closest(".card-item");
-        if (direction === "up" && item.previousElementSibling) {
-            cardList.insertBefore(item, item.previousElementSibling);
-        } else if (direction === "down" && item.nextElementSibling) {
-            cardList.insertBefore(item.nextElementSibling, item);
+    function renderHistoryList() {
+        const historyList = document.getElementById('history-list');
+        historyList.innerHTML = '';
+
+        if (benefitData.length === 0) {
+            historyList.innerHTML = '<div style="font-size:0.85rem; color:#888; text-align:center; padding:10px;">등록된 내역이 없습니다.</div>';
+            return;
         }
-        saveCardOrder();
-    }
 
-    function saveCardOrder() {
-        const items = cardList.querySelectorAll(".card-item");
-        const order = Array.from(items).map(item => item.getAttribute("data-id"));
-        localStorage.setItem("card_order_cherry", JSON.stringify(order));
-    }
-
-    function loadCardOrder() {
-        const savedOrder = JSON.parse(localStorage.getItem("card_order_cherry"));
-        if (!savedOrder) return;
-        const itemsMap = new Map();
-        cardList.querySelectorAll(".card-item").forEach(item => itemsMap.set(item.getAttribute("data-id"), item));
-        savedOrder.forEach(id => { if (itemsMap.has(id)) cardList.appendChild(itemsMap.get(id)); });
+        benefitData.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'record-history-item';
+            const typeClass = 'type-' + (item.type || 'discount').replace(/\s/g, '');
+            div.innerHTML = `
+                <div class="record-history-left">
+                    <span class="type ${typeClass}">${item.type || '혜택'}</span>
+                    <div style="min-width:0;">
+                        <strong style="display:block; font-size:0.85rem;">${item.cardName}</strong>
+                        <span class="history-benefit-name" title="${item.benefitName}">${item.benefitName}</span>
+                        <span style="font-size:0.75rem; color:#888; display:block;">${item.date}</span>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="font-weight:bold;">${item.amount.toLocaleString()}원</span>
+                    <button class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
+                </div>
+            `;
+            historyList.appendChild(div);
+        });
     }
 </script>
 
 </body>
 </html>
+
