@@ -5,19 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>카드 피커 체리</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0d9488">
+    <meta name="theme-color" content="#2563eb">
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-color: #f0f4f8;
+            --bg-color: #f1f5f9;
             --card-bg: #ffffff;
             --text-color: #1e293b;
-            --primary-color: #0d9488;
-            --primary-dark: #0f766e;
+            --text-muted: #64748b;
+            --primary-color: #2563eb;
+            --primary-dark: #1d4ed8;
             --border-color: #e2e8f0;
-            --success-color: #15803d;
+            --success-color: #16a34a;
             --warning-color: #dc2626;
+            --disabled-bg: #f1f5f9;
+            --disabled-text: #94a3b8;
+            --progress-bg: #dbeafe;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #0f172a;
+                --card-bg: #1e293b;
+                --text-color: #f1f5f9;
+                --text-muted: #94a3b8;
+                --primary-color: #3b82f6;
+                --primary-dark: #2563eb;
+                --border-color: #334155;
+                --success-color: #22c55e;
+                --warning-color: #f87171;
+                --disabled-bg: #1e293b;
+                --disabled-text: #64748b;
+                --progress-bg: #1e3a5f;
+            }
         }
 
         body {
@@ -93,13 +114,14 @@
         }
 
         .modal-content {
-            background: #fff;
+            background: var(--card-bg);
             border-radius: 14px;
             width: 100%;
             max-width: 480px;
             margin-top: 30px;
             box-shadow: 0 8px 30px rgba(0,0,0,0.18);
             overflow: hidden;
+            color: var(--text-color);
         }
 
         .modal-header {
@@ -121,7 +143,7 @@
             border: none;
             font-size: 1.4rem;
             cursor: pointer;
-            color: #888;
+            color: var(--text-muted);
             padding: 0 4px;
         }
 
@@ -132,8 +154,8 @@
         }
 
         .default-card-block {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
             border-radius: 10px;
             padding: 12px 14px;
             margin-bottom: 12px;
@@ -192,8 +214,9 @@
             font-size: 0.78rem;
             padding: 4px 10px;
             border-radius: 16px;
-            border: 1px solid #ddd;
-            background: #fff;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
             cursor: pointer;
             transition: all 0.15s;
         }
@@ -227,8 +250,9 @@
         }
 
         .modal-btn-secondary {
-            background: #f0f0f0;
-            color: #555;
+            background: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
         }
 
         /* 플로팅 액션 버튼 */
@@ -245,7 +269,7 @@
             font-size: 1.8rem;
             font-weight: 300;
             line-height: 1;
-            box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
             cursor: pointer;
             z-index: 300;
             display: flex;
@@ -335,7 +359,7 @@
             background: none;
             font-size: 0.95rem;
             font-weight: 600;
-            color: #777;
+            color: var(--text-muted);
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.2s;
@@ -377,7 +401,8 @@
             border-radius: 6px;
             font-size: 0.9rem;
             outline: none;
-            background-color: #fff;
+            background-color: var(--card-bg);
+            color: var(--text-color);
             cursor: pointer;
         }
 
@@ -433,12 +458,13 @@
         }
 
         .order-btn {
-            background: #f0f0f0;
-            border: none;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             width: 26px;
             height: 26px;
             font-size: 0.8rem;
+            color: var(--text-color);
             cursor: pointer;
         }
 
@@ -446,8 +472,8 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 10px 12px;
             margin-bottom: 12px;
@@ -474,9 +500,27 @@
         }
 
         .benefit-item {
-            background-color: #f0fdfa;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 10px 12px;
+            transition: opacity 0.2s, filter 0.2s;
+        }
+
+        .benefit-item.disabled {
+            background-color: var(--disabled-bg);
+            opacity: 0.65;
+            filter: grayscale(0.4);
+        }
+
+        .benefit-item.disabled .benefit-name,
+        .benefit-item.disabled .benefit-meta,
+        .benefit-item.disabled .benefit-limit-row {
+            color: var(--disabled-text);
+        }
+
+        .benefit-item.disabled .progress-bar-fill {
+            background-color: var(--disabled-text);
         }
 
         .benefit-item-header {
@@ -513,7 +557,7 @@
         }
 
         .progress-bar-bg {
-            background-color: #ccfbf1;
+            background-color: var(--progress-bg);
             height: 8px;
             border-radius: 4px;
             overflow: hidden;
@@ -573,7 +617,7 @@
 
         .form-group label {
             font-size: 0.8rem;
-            color: #666;
+            color: var(--text-muted);
             font-weight: 600;
         }
 
@@ -583,6 +627,8 @@
             border-radius: 6px;
             font-size: 0.9rem;
             outline: none;
+            background-color: var(--card-bg);
+            color: var(--text-color);
         }
 
         .submit-btn {
@@ -608,8 +654,8 @@
             justify-content: space-between;
             align-items: center;
             padding: 10px 12px;
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             font-size: 0.85rem;
         }
@@ -693,8 +739,8 @@
 
 <div class="container">
     <div class="tab-menu">
-        <button class="tab-btn active" onclick="switchTab('tab-status', this)">혜택 사용 현황</button>
-        <button class="tab-btn" onclick="switchTab('tab-records', this)">혜택 사용 기록</button>
+        <button class="tab-btn active" onclick="switchTab('tab-status', this)">📊 혜택 사용 현황</button>
+        <button class="tab-btn" onclick="switchTab('tab-records', this)">📝 혜택 사용 기록</button>
     </div>
 
     <!-- TAB 1: 혜택 사용 현황 -->
@@ -722,7 +768,6 @@
     <!-- TAB 2: 혜택 사용 기록 -->
     <div id="tab-records" class="tab-content">
         <div class="record-card">
-            <div class="form-title">📋 등록된 혜택 기록 목록</div>
             <div class="record-history-list" id="history-list"></div>
         </div>
     </div>
@@ -1061,13 +1106,13 @@
 
             let html = `
                 <div class="default-card-block" data-card="${cardName}">
-                    <div class="default-card-name">${cardName}</div>
+                    <div class="default-card-name">💳 ${cardName}</div>
                     <div class="default-row">
                         <label>기본 실적</label>
                         <select class="default-tier-select" data-card="${cardName}">
             `;
             tierKeys.forEach(t => {
-                html += `<option value="${t}" ${t === currentTier ? 'selected' : ''}>${t}</option>`;
+                html += `<option value="${t}" ${t === currentTier ? 'selected' : ''}>${formatTierLabel(t)}</option>`;
             });
             html += `</select></div>`;
 
@@ -1169,6 +1214,42 @@
         return match ? parseInt(match[1], 10) : null;
     }
 
+    /* --- 실적 구간 표시명 (0만원 → 실적 없음) --- */
+    function formatTierLabel(tier) {
+        if (!tier) return '';
+        const normalized = String(tier).replace(/\s/g, '');
+        if (normalized === '0만원' || normalized === '0원' || normalized === '없음') {
+            return '실적 없음';
+        }
+        return tier;
+    }
+
+    /* --- 혜택명 키워드 → 이모티콘 --- */
+    function getBenefitEmoji(name) {
+        if (!name) return '🏷️';
+        const n = name.toLowerCase();
+        if (/스타벅스|커피/.test(n)) return '☕';
+        if (/대중교통|교통|버스|지하철|택시/.test(n)) return '🚌';
+        if (/배달/.test(n)) return '🛵';
+        if (/이동통신|통신|휴대폰|핸드폰/.test(n)) return '📱';
+        if (/아파트|관리비/.test(n)) return '🏢';
+        if (/주유|기름/.test(n)) return '⛽';
+        if (/의료|병원|약국/.test(n)) return '🏥';
+        if (/할인점|마트|이마트|편의점|다이소|올리브영/.test(n)) return '🛒';
+        if (/스트리밍|넷플릭스|유튜브|영상/.test(n)) return '📺';
+        if (/온라인쇼핑몰|쇼핑|패션|오늘의집/.test(n)) return '🛍️';
+        if (/영화|시네마|롯데시네마/.test(n)) return '🎬';
+        if (/해외|공항/.test(n)) return '✈️';
+        if (/주차/.test(n)) return '🅿️';
+        if (/간편결제|페이/.test(n)) return '💳';
+        if (/적립|마일|리워드|포인트/.test(n)) return '🪙';
+        if (/생활요금|정기결제|공과금/.test(n)) return '💡';
+        if (/멤버십|디지털/.test(n)) return '🎫';
+        if (/교보|도서|책/.test(n)) return '📚';
+        if (/수수료/.test(n)) return '🆓';
+        return '🏷️';
+    }
+
     /* --- 카드 순서 --- */
     function getCardOrder() {
         if (!cardBenefitsData) return [];
@@ -1261,7 +1342,7 @@
             let html = `
                 <div class="card-header">
                     <div class="card-title-group">
-                        <span class="card-name">${cardName}</span>
+                        <span class="card-name">💳 ${cardName}</span>
                     </div>
                     <div class="order-btns">
                         <button class="order-btn" onclick="moveCard(this, 'up')">▲</button>
@@ -1277,7 +1358,7 @@
 
             tierKeys.forEach(t => {
                 const selected = t === selectedTier ? 'selected' : '';
-                html += `<option value="${t}" ${selected}>${t}</option>`;
+                html += `<option value="${t}" ${selected}>${formatTierLabel(t)}</option>`;
             });
 
             html += `
@@ -1304,11 +1385,14 @@
                     const percent = isUnlimited ? 0 : Math.min(100, Math.round((used / limitNum) * 100));
 
                     const typeClass = 'type-' + (ben.type || 'discount').replace(/\s/g, '');
+                    const isExhausted = !isUnlimited && remain === 0;
+                    const emoji = getBenefitEmoji(ben.name);
+                    const disabledClass = isExhausted ? ' disabled' : '';
 
                     html += `
-                        <div class="benefit-item">
+                        <div class="benefit-item${disabledClass}">
                             <div class="benefit-item-header">
-                                <span class="benefit-name">${ben.name}</span>
+                                <span class="benefit-name">${emoji} ${ben.name}</span>
                                 <span class="type ${typeClass}">${ben.type || ''}</span>
                             </div>
                             <div class="benefit-meta">${ben.rate || ''} ${ben.option ? '(옵션 ' + ben.option + ')' : ''}</div>
@@ -1325,7 +1409,7 @@
                         html += `
                             <div class="benefit-limit-row">
                                 <span>사용: <strong>${used.toLocaleString()}원</strong> / ${limitNum.toLocaleString()}원</span>
-                                <span class="benefit-remaining">잔여: ${remain.toLocaleString()}원</span>
+                                <span class="benefit-remaining">${isExhausted ? '한도 소진' : '잔여: ' + remain.toLocaleString() + '원'}</span>
                             </div>
                             <div class="progress-bar-bg">
                                 <div class="progress-bar-fill" style="width:${percent}%"></div>
@@ -1352,7 +1436,7 @@
 
         const months = ['2026-06', '2026-07', '2026-08'];
         const cardNames = getCardOrder();
-        const colors = ['#0d9488', '#14b8a6', '#2dd4bf', '#6366f1', '#8b5cf6', '#3b82f6', '#10b981'];
+        const colors = ['#2563eb', '#3b82f6', '#60a5fa', '#6366f1', '#8b5cf6', '#0ea5e9', '#10b981'];
 
         const datasets = cardNames.map((name, idx) => {
             const data = months.map(m =>
@@ -1490,8 +1574,8 @@
                 <div class="record-history-left">
                     <span class="type ${typeClass}">${item.type || '혜택'}</span>
                     <div style="min-width:0;">
-                        <strong style="display:block; font-size:0.85rem;">${item.cardName}</strong>
-                        <span class="history-benefit-name" title="${item.benefitName}">${item.benefitName}</span>
+                        <strong style="display:block; font-size:0.85rem;">💳 ${item.cardName}</strong>
+                        <span class="history-benefit-name" title="${item.benefitName}">${getBenefitEmoji(item.benefitName)} ${item.benefitName}</span>
                         <span style="font-size:0.75rem; color:#888; display:block;">${item.date}</span>
                     </div>
                 </div>
