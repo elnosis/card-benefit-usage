@@ -1,6 +1,6 @@
 // 상단 버전 수정 시 메인 화면 버전 배지도 자동으로 업데이트됩니다.
 const APP_VERSION = 'v1.0.0'; 
-const CACHE_NAME = `growth-app-${APP_VERSION}`; 
+const CACHE_NAME = `card-picker-cherry-${APP_VERSION}`; 
 
 // 캐싱할 주요 정적 리소스 목록
 const ASSETS = [

@@ -53,6 +53,18 @@
             gap: 6px;
         }
 
+        .version-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #fff;
+            background-color: var(--primary-color);
+            padding: 2px 7px;
+            border-radius: 10px;
+            margin-left: 4px;
+            letter-spacing: 0.3px;
+            opacity: 0.9;
+        }
+
         .options-container {
             position: relative;
         }
@@ -447,7 +459,7 @@
 
 <div class="container">
     <header>
-        <h1>🍒 카드 피커 체리</h1>
+        <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.0</span></h1>
         
         <div class="options-container">
             <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
@@ -529,8 +541,35 @@
 <script>
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./service-worker.js')
-            .then(reg => console.log('Service Worker Registered!', reg))
+            .then(reg => {
+                console.log('Service Worker Registered!', reg);
+                // 서비스 워커에서 버전 정보 가져오기
+                fetchAppVersion();
+            })
             .catch(err => console.error('Service Worker Registration Failed!', err));
+
+        // 이미 활성화된 서비스 워커가 있으면 바로 버전 요청
+        if (navigator.serviceWorker.controller) {
+            fetchAppVersion();
+        }
+    }
+
+    function fetchAppVersion() {
+        if (!navigator.serviceWorker.controller) return;
+
+        const channel = new MessageChannel();
+        channel.port1.onmessage = (event) => {
+            if (event.data && event.data.version) {
+                const badge = document.getElementById('app-version');
+                if (badge) {
+                    badge.textContent = event.data.version;
+                }
+            }
+        };
+        navigator.serviceWorker.controller.postMessage(
+            { type: 'GET_VERSION' },
+            [channel.port2]
+        );
     }
 
     // ===== 데이터 저장소 =====
@@ -1092,4 +1131,3 @@
 
 </body>
 </html>
-
