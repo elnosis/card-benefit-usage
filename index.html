@@ -743,7 +743,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.13</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.14</span></h1>
     
     <div class="options-container">
         <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
@@ -821,10 +821,9 @@
         </div>
     </div>
 
-    <!-- TAB 3: 특정 혜택 기록 상세 (기간 선택 없음) -->
+    <!-- TAB 3: 특정 혜택 기록 상세 (기간 선택 없음, 단말 Back으로 복귀) -->
     <div id="tab-detail" class="tab-content">
-        <div class="filter-box" style="justify-content:flex-start; gap:10px;">
-            <button type="button" class="modal-btn modal-btn-secondary" onclick="closeBenefitDetail()" style="padding:6px 12px;">← 뒤로</button>
+        <div class="filter-box" style="justify-content:flex-start;">
             <span id="detail-title" style="font-size:0.9rem; font-weight:600; color:var(--text-color);"></span>
         </div>
         <div class="record-card">
@@ -903,7 +902,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.13';
+            badge.textContent = 'v1.0.14';
             return;
         }
 
@@ -956,7 +955,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.13';
+            badge.textContent = 'v1.0.14';
         }
         fetchAppVersion();
 
@@ -1313,14 +1312,23 @@
         document.getElementById('detail-title').textContent =
             `${getBenefitEmoji(benefitName)} ${benefitName} · ${cardName} · ${monthLabel}`;
         renderDetailHistoryList();
+
+        // 단말 Back 키로 현황 복귀할 수 있도록 히스토리 추가
+        if (history.state && history.state.view === 'benefit-detail') {
+            history.replaceState({ view: 'benefit-detail' }, '', location.href);
+        } else {
+            history.pushState({ view: 'benefit-detail' }, '', location.href);
+        }
     }
 
-    function closeBenefitDetail() {
-        detailFilter = null;
-        // 현황 탭으로 복귀
-        const statusBtn = document.querySelector('.tab-btn');
-        switchTab('tab-status', statusBtn);
-    }
+    window.addEventListener('popstate', () => {
+        const detailTab = document.getElementById('tab-detail');
+        if (detailTab && detailTab.classList.contains('active')) {
+            detailFilter = null;
+            const statusBtn = document.querySelector('.tab-btn');
+            switchTab('tab-status', statusBtn);
+        }
+    });
 
     function renderDetailHistoryList() {
         const listEl = document.getElementById('detail-history-list');
