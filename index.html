@@ -680,6 +680,15 @@
         .type-point, .type-적립 { background-color: #e8f5e9; color: #2e7d32; }
         .type-cashback, .type-기타 { background-color: #e3f2fd; color: #1976d2; }
 
+        .edit-btn {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            cursor: pointer;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
         .delete-btn {
             background: none;
             border: none;
@@ -1182,13 +1191,51 @@
         }
     }
 
+    let editingId = null;
+
     function openAddRecordModal() {
-        document.getElementById('add-record-modal').classList.add('show');
+        editingId = null;
+        const titleEl = document.querySelector('#add-record-modal .modal-header h2');
+        if (titleEl) titleEl.textContent = '➕ 혜택 사용 내역 등록';
+        document.getElementById('benefit-form').reset();
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        document.getElementById('form-date').value = `${yyyy}-${mm}-${dd}`;
         populateFormCards();
+        document.getElementById('form-calc-hint').textContent = '';
+        document.getElementById('add-record-modal').classList.add('show');
     }
 
     function closeAddRecordModal() {
+        editingId = null;
         document.getElementById('add-record-modal').classList.remove('show');
+    }
+
+    function editRecord(id) {
+        const item = benefitData.find(r => r.id === id);
+        if (!item) return;
+
+        editingId = id;
+        const titleEl = document.querySelector('#add-record-modal .modal-header h2');
+        if (titleEl) titleEl.textContent = '✏️ 혜택 사용 내역 수정';
+
+        populateFormCards();
+        document.getElementById('form-card').value = item.cardName;
+        updateBenefitOptions();
+        document.getElementById('form-benefit').value = item.benefitName;
+        document.getElementById('form-date').value = item.date;
+        document.getElementById('form-payment').value = item.payment != null ? item.payment : '';
+        document.getElementById('form-amount').value = item.amount;
+
+        const meta = findBenefitMeta(item.cardName, item.benefitName);
+        const unit = meta ? getUnitLabel(meta.rate, meta.limit) : (item.unit || '원');
+        document.getElementById('form-amount-label').textContent =
+            unit === '마일' ? '적립 마일리지' : '혜택 금액 (원)';
+        document.getElementById('form-calc-hint').textContent = '수정 모드 · 값을 변경한 뒤 저장하세요';
+
+        document.getElementById('add-record-modal').classList.add('show');
     }
 
     function handleFilterChange(selectedMonth) {
@@ -1726,16 +1773,32 @@
         const meta = findBenefitMeta(cardName, benefitName);
         const unit = meta ? getUnitLabel(meta.rate, meta.limit) : '원';
 
-        benefitData.push({
-            id: Date.now(),
-            cardName,
-            benefitName,
-            type,
-            date,
-            amount,
-            payment,
-            unit
-        });
+        if (editingId != null) {
+            const idx = benefitData.findIndex(r => r.id === editingId);
+            if (idx !== -1) {
+                benefitData[idx] = {
+                    ...benefitData[idx],
+                    cardName,
+                    benefitName,
+                    type,
+                    date,
+                    amount,
+                    payment,
+                    unit
+                };
+            }
+        } else {
+            benefitData.push({
+                id: Date.now(),
+                cardName,
+                benefitName,
+                type,
+                date,
+                amount,
+                payment,
+                unit
+            });
+        }
         saveData();
         renderAll();
         document.getElementById('form-amount').value = '';
@@ -1774,6 +1837,7 @@
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
                     <span style="font-weight:bold;">${item.amount.toLocaleString()}${item.unit || '원'}</span>
+                    <button class="edit-btn" onclick="editRecord(${item.id})">수정</button>
                     <button class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
                 </div>
             `;
