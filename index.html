@@ -507,6 +507,14 @@
             transition: opacity 0.2s, filter 0.2s;
         }
 
+        .benefit-item.clickable {
+            cursor: pointer;
+        }
+
+        .benefit-item.clickable:active {
+            opacity: 0.85;
+        }
+
         .benefit-item.disabled {
             background-color: var(--disabled-bg);
             opacity: 0.65;
@@ -735,7 +743,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.12</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.13</span></h1>
     
     <div class="options-container">
         <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
@@ -799,8 +807,28 @@
 
     <!-- TAB 2: 혜택 사용 기록 -->
     <div id="tab-records" class="tab-content">
+        <div class="filter-box">
+            <label for="record-month-spinner">조회 기간 선택</label>
+            <select id="record-month-spinner" class="spinner-select" onchange="renderHistoryList()">
+                <option value="ALL" selected>전체</option>
+                <option value="2026-08">2026년 8월</option>
+                <option value="2026-07">2026년 7월</option>
+                <option value="2026-06">2026년 6월</option>
+            </select>
+        </div>
         <div class="record-card">
             <div class="record-history-list" id="history-list"></div>
+        </div>
+    </div>
+
+    <!-- TAB 3: 특정 혜택 기록 상세 (기간 선택 없음) -->
+    <div id="tab-detail" class="tab-content">
+        <div class="filter-box" style="justify-content:flex-start; gap:10px;">
+            <button type="button" class="modal-btn modal-btn-secondary" onclick="closeBenefitDetail()" style="padding:6px 12px;">← 뒤로</button>
+            <span id="detail-title" style="font-size:0.9rem; font-weight:600; color:var(--text-color);"></span>
+        </div>
+        <div class="record-card">
+            <div class="record-history-list" id="detail-history-list"></div>
         </div>
     </div>
 </div>
@@ -875,7 +903,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.12';
+            badge.textContent = 'v1.0.13';
             return;
         }
 
@@ -914,6 +942,10 @@
         return issuer ? `💳 [${issuer}] ${cardName}` : `💳 ${cardName}`;
     }
 
+    function escJs(str) {
+        return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
         const today = new Date();
         const yyyy = today.getFullYear();
@@ -924,7 +956,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.12';
+            badge.textContent = 'v1.0.13';
         }
         fetchAppVersion();
 
@@ -1253,13 +1285,85 @@
         document.querySelectorAll('.tab-btn').forEach(button => button.classList.remove('active'));
 
         document.getElementById(tabId).classList.add('active');
-        btn.classList.add('active');
+        if (btn) btn.classList.add('active');
 
         // 기록 탭에서만 FAB 표시
         const fab = document.getElementById('fab-add');
         if (fab) {
             fab.style.display = (tabId === 'tab-records') ? 'flex' : 'none';
         }
+
+        if (tabId === 'tab-records') {
+            renderHistoryList();
+        }
+    }
+
+    let detailFilter = null; // { cardName, benefitName, month }
+
+    function openBenefitDetail(cardName, benefitName, month) {
+        detailFilter = { cardName, benefitName, month };
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-detail').classList.add('active');
+
+        const fab = document.getElementById('fab-add');
+        if (fab) fab.style.display = 'none';
+
+        const monthLabel = (!month || month === 'ALL') ? '전체' : month.replace('-', '년 ') + '월';
+        document.getElementById('detail-title').textContent =
+            `${getBenefitEmoji(benefitName)} ${benefitName} · ${cardName} · ${monthLabel}`;
+        renderDetailHistoryList();
+    }
+
+    function closeBenefitDetail() {
+        detailFilter = null;
+        // 현황 탭으로 복귀
+        const statusBtn = document.querySelector('.tab-btn');
+        switchTab('tab-status', statusBtn);
+    }
+
+    function renderDetailHistoryList() {
+        const listEl = document.getElementById('detail-history-list');
+        if (!listEl || !detailFilter) return;
+
+        let items = benefitData.filter(item =>
+            item.cardName === detailFilter.cardName &&
+            item.benefitName === detailFilter.benefitName
+        );
+        if (detailFilter.month && detailFilter.month !== 'ALL') {
+            items = items.filter(item => item.date.startsWith(detailFilter.month));
+        }
+        items = items.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        if (items.length === 0) {
+            listEl.innerHTML = '<div style="font-size:0.85rem; color:var(--text-muted); text-align:center; padding:10px;">해당 내역이 없습니다.</div>';
+            return;
+        }
+
+        listEl.innerHTML = '';
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'record-history-item';
+            const typeClass = 'type-' + (item.type || 'discount').replace(/\s/g, '');
+            div.innerHTML = `
+                <div class="record-history-left">
+                    <span class="type ${typeClass}">${item.type || '혜택'}</span>
+                    <div style="min-width:0;">
+                        <strong style="display:block; font-size:0.85rem;">${formatCardLabel(item.cardName)}</strong>
+                        <span class="history-benefit-name" title="${item.benefitName}">${getBenefitEmoji(item.benefitName)} ${item.benefitName}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted); display:block;">${item.date}</span>
+                    </div>
+                </div>
+                <div class="record-history-right">
+                    <span class="record-amount">${item.amount.toLocaleString()}${item.unit || '원'}</span>
+                    <div class="record-actions">
+                        <button type="button" class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
+                        <button type="button" class="edit-btn" onclick="editRecord(${item.id})">수정</button>
+                    </div>
+                </div>
+            `;
+            listEl.appendChild(div);
+        });
     }
 
     let editingId = null;
@@ -1609,6 +1713,7 @@
                             <span class="type type-청구할인">통합</span>
                         </div>
                         <div class="benefit-meta">${group.map(b => getBenefitEmoji(b.name) + ' ' + b.name).join(' · ')}</div>`;
+                    // 통합 요약은 클릭 없음 — 아래 개별 혜택 클릭
 
                     if (isUnlimited) {
                         html += `<div class="benefit-limit-row">
@@ -1629,7 +1734,8 @@
                     // 개별 혜택명만 간단히 표시 (한도 바 없이)
                     group.forEach(ben => {
                         const typeClass = 'type-' + (ben.type || 'discount').replace(/\s/g, '');
-                        html += `<div class="benefit-item" style="margin-left:8px;opacity:0.9;">
+                        html += `<div class="benefit-item clickable" style="margin-left:8px;opacity:0.9;"
+                            onclick="openBenefitDetail('${escJs(cardName)}','${escJs(ben.name)}','${escJs(targetMonth)}')">
                             <div class="benefit-item-header">
                                 <span class="benefit-name">${getBenefitEmoji(ben.name)} ${ben.name}</span>
                                 <span class="type ${typeClass}">${ben.type || ''}</span>
@@ -1658,7 +1764,8 @@
                     const disabledClass = isExhausted ? ' disabled' : '';
 
                     html += `
-                        <div class="benefit-item${disabledClass}">
+                        <div class="benefit-item clickable${disabledClass}"
+                            onclick="openBenefitDetail('${escJs(cardName)}','${escJs(ben.name)}','${escJs(targetMonth)}')">
                             <div class="benefit-item-header">
                                 <span class="benefit-name">${emoji} ${ben.name}</span>
                                 <span class="type ${typeClass}">${ben.type || ''}</span>
@@ -1873,6 +1980,7 @@
         }
         saveData();
         renderAll();
+        if (detailFilter) renderDetailHistoryList();
         document.getElementById('form-amount').value = '';
         document.getElementById('form-payment').value = '';
         document.getElementById('form-calc-hint').textContent = '';
@@ -1884,18 +1992,29 @@
         benefitData = benefitData.filter(item => item.id !== id);
         saveData();
         renderAll();
+        if (detailFilter) renderDetailHistoryList();
     }
 
     function renderHistoryList() {
         const historyList = document.getElementById('history-list');
+        if (!historyList) return;
         historyList.innerHTML = '';
 
-        if (benefitData.length === 0) {
-            historyList.innerHTML = '<div style="font-size:0.85rem; color:#888; text-align:center; padding:10px;">등록된 내역이 없습니다.</div>';
+        const monthSel = document.getElementById('record-month-spinner');
+        const selectedMonth = monthSel ? monthSel.value : 'ALL';
+
+        let items = benefitData.slice();
+        if (selectedMonth && selectedMonth !== 'ALL') {
+            items = items.filter(item => item.date.startsWith(selectedMonth));
+        }
+        items.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        if (items.length === 0) {
+            historyList.innerHTML = '<div style="font-size:0.85rem; color:var(--text-muted); text-align:center; padding:10px;">등록된 내역이 없습니다.</div>';
             return;
         }
 
-        benefitData.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+        items.forEach(item => {
             const div = document.createElement('div');
             div.className = 'record-history-item';
             const typeClass = 'type-' + (item.type || 'discount').replace(/\s/g, '');
@@ -1905,7 +2024,7 @@
                     <div style="min-width:0;">
                         <strong style="display:block; font-size:0.85rem;">${formatCardLabel(item.cardName)}</strong>
                         <span class="history-benefit-name" title="${item.benefitName}">${getBenefitEmoji(item.benefitName)} ${item.benefitName}</span>
-                        <span style="font-size:0.75rem; color:#888; display:block;">${item.date}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted); display:block;">${item.date}</span>
                     </div>
                 </div>
                 <div class="record-history-right">
