@@ -680,33 +680,41 @@
         .type-point, .type-적립 { background-color: #e8f5e9; color: #2e7d32; }
         .type-cashback, .type-기타 { background-color: #e3f2fd; color: #1976d2; }
 
-        .record-actions {
+        .record-history-right {
             display: flex;
             flex-direction: column;
             align-items: flex-end;
-            gap: 2px;
+            justify-content: center;
+            gap: 10px;
+            flex-shrink: 0;
+            margin-left: 8px;
         }
 
-        .edit-btn {
+        .record-history-right .record-amount {
+            font-weight: bold;
+            white-space: nowrap;
+            margin-bottom: 4px;
+        }
+
+        .record-history-right .edit-btn,
+        .record-history-right .delete-btn {
+            display: block;
+            width: auto;
             background: none;
             border: none;
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 4px 0;
+            line-height: 1.4;
+            text-align: right;
+        }
+
+        .record-history-right .edit-btn {
             color: var(--primary-color);
-            cursor: pointer;
-            font-size: 0.8rem;
-            flex-shrink: 0;
-            padding: 0;
-            line-height: 1.3;
         }
 
-        .delete-btn {
-            background: none;
-            border: none;
+        .record-history-right .delete-btn {
             color: #ff5252;
-            cursor: pointer;
-            font-size: 0.8rem;
-            flex-shrink: 0;
-            padding: 0;
-            line-height: 1.3;
         }
 
         .history-benefit-name {
@@ -723,7 +731,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.0</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.7</span></h1>
     
     <div class="options-container">
         <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
@@ -863,7 +871,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.0';
+            badge.textContent = 'v1.0.7';
             return;
         }
 
@@ -904,7 +912,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.0';
+            badge.textContent = 'v1.0.7';
         }
         fetchAppVersion();
 
@@ -1819,6 +1827,7 @@
     }
 
     function deleteRecord(id) {
+        if (!confirm('정말 이 기록을 삭제하시겠습니까?')) return;
         benefitData = benefitData.filter(item => item.id !== id);
         saveData();
         renderAll();
@@ -1846,12 +1855,10 @@
                         <span style="font-size:0.75rem; color:#888; display:block;">${item.date}</span>
                     </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <span style="font-weight:bold; white-space:nowrap;">${item.amount.toLocaleString()}${item.unit || '원'}</span>
-                    <div class="record-actions">
-                        <button class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
-                        <button class="edit-btn" onclick="editRecord(${item.id})">수정</button>
-                    </div>
+                <div class="record-history-right">
+                    <span class="record-amount">${item.amount.toLocaleString()}${item.unit || '원'}</span>
+                    <button type="button" class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
+                    <button type="button" class="edit-btn" onclick="editRecord(${item.id})">수정</button>
                 </div>
             `;
             historyList.appendChild(div);
