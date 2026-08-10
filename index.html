@@ -735,7 +735,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.11</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.12</span></h1>
     
     <div class="options-container">
         <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
@@ -875,7 +875,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.11';
+            badge.textContent = 'v1.0.12';
             return;
         }
 
@@ -924,7 +924,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.11';
+            badge.textContent = 'v1.0.12';
         }
         fetchAppVersion();
 
@@ -965,11 +965,12 @@
                 }
                 cardBenefitsData = parsed;
                 localStorage.setItem('card_picker_cherry_benefits', JSON.stringify(cardBenefitsData));
-                // 카드 순서 초기화
+                // 카드 순서 초기화 (이전 잘못된 키 제거)
                 localStorage.removeItem("card_order_cherry");
                 renderAll();
                 populateFormCards();
-                alert(`카드 혜택을 성공적으로 불러왔습니다!\n총 ${Object.keys(cardBenefitsData).length}개 카드`);
+                const names = Object.keys(cardBenefitsData);
+                alert(`카드 혜택을 성공적으로 불러왔습니다!\n총 ${names.length}개 카드\n\n${names.map(n => '· ' + n).join('\n')}`);
             } catch (err) {
                 alert("CSV 파일을 읽는 중 오류가 발생했습니다: " + err.message);
             }
@@ -979,26 +980,35 @@
     }
 
     function parseCSV(text) {
-        const lines = text.trim().split(/\r?\n/);
+        const lines = text.trim().replace(/^\uFEFF/, '').split(/\r?\n/);
         if (lines.length < 2) return null;
 
-        // 헤더 기반 매핑 (카드사 열 유무와 무관하게 동작)
-        const headers = parseCSVLine(lines[0]).map(h => h.trim());
-        const idx = (name) => {
-            const i = headers.indexOf(name);
-            return i >= 0 ? i : -1;
-        };
-        const iIssuer = idx('카드사');
-        const iCard = idx('카드명');
-        const iTier = idx('실적');
-        const iName = idx('혜택명');
-        const iType = idx('할인유형');
-        const iRate = idx('할인율또는금액');
-        const iLimit = idx('월간한도');
-        const iOpt = idx('옵션');
+        // BOM 제거 + 헤더 매핑
+        const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/^\uFEFF/, ''));
+        const idx = (name) => headers.indexOf(name);
+        let iIssuer = idx('카드사');
+        let iCard = idx('카드명');
+        let iTier = idx('실적');
+        let iName = idx('혜택명');
+        let iType = idx('할인유형');
+        let iRate = idx('할인율또는금액');
+        let iLimit = idx('월간한도');
+        let iOpt = idx('옵션');
 
-        // 헤더가 없으면 기존 순서 가정 (하위 호환)
-        const useHeader = iCard >= 0;
+        // 헤더를 못 찾은 경우: 열 개수로 포맷 추정
+        // 신버전(카드사 포함) 8열 / 구버전 7열
+        if (iCard < 0) {
+            const sample = parseCSVLine(lines[1] || '');
+            if (headers[0] === '카드사' || sample.length >= 8) {
+                iIssuer = 0; iCard = 1; iTier = 2; iName = 3;
+                iType = 4; iRate = 5; iLimit = 6; iOpt = 7;
+            } else {
+                // 구버전: 카드명,실적,혜택명,할인유형,할인율또는금액,월간한도,옵션
+                iIssuer = -1; iCard = 0; iTier = 1; iName = 2;
+                iType = 3; iRate = 4; iLimit = 5; iOpt = 6;
+            }
+        }
+
         const cards = {};
         const issuers = {};
 
@@ -1006,28 +1016,18 @@
             const cols = parseCSVLine(lines[i]);
             if (cols.length < 5) continue;
 
-            let issuer = '', cardName = '', tier = '', benefitName = '', type = '', rate = '', limit = '', option = '';
-            if (useHeader) {
-                issuer = iIssuer >= 0 ? (cols[iIssuer] || '').trim() : '';
-                cardName = (cols[iCard] || '').trim();
-                tier = (cols[iTier] || '').trim();
-                benefitName = (cols[iName] || '').trim();
-                type = (cols[iType] || '').trim();
-                rate = (cols[iRate] || '').trim();
-                limit = (cols[iLimit] || '').trim();
-                option = iOpt >= 0 ? (cols[iOpt] || '').trim() : '';
-            } else {
-                // 구버전: 카드명,실적,혜택명,할인유형,할인율또는금액,월간한도,옵션
-                cardName = (cols[0] || '').trim();
-                tier = (cols[1] || '').trim();
-                benefitName = (cols[2] || '').trim();
-                type = (cols[3] || '').trim();
-                rate = (cols[4] || '').trim();
-                limit = (cols[5] || '').trim();
-                option = cols.length > 6 ? (cols[6] || '').trim() : '';
-            }
+            const issuer = iIssuer >= 0 ? (cols[iIssuer] || '').trim() : '';
+            const cardName = (cols[iCard] || '').trim();
+            const tier = (cols[iTier] || '').trim();
+            const benefitName = (cols[iName] || '').trim();
+            const type = (cols[iType] || '').trim();
+            const rate = (cols[iRate] || '').trim();
+            const limit = (cols[iLimit] || '').trim();
+            const option = iOpt >= 0 ? (cols[iOpt] || '').trim() : '';
 
+            // 카드명 자리에 카드사만 들어온 잘못된 매핑 방지
             if (!cardName || !tier || !benefitName) continue;
+            if (cardName === issuer) continue;
 
             if (issuer) issuers[cardName] = issuer;
             if (!cards[cardName]) cards[cardName] = {};
@@ -1042,7 +1042,6 @@
             });
         }
 
-        // 카드사 정보 저장
         if (Object.keys(issuers).length > 0) {
             cardIssuers = issuers;
             localStorage.setItem('card_picker_cherry_issuers', JSON.stringify(issuers));
