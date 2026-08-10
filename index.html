@@ -682,9 +682,8 @@
 
         .record-history-right {
             display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            justify-content: center;
+            flex-direction: row;
+            align-items: center;
             gap: 10px;
             flex-shrink: 0;
             margin-left: 8px;
@@ -693,13 +692,18 @@
         .record-history-right .record-amount {
             font-weight: bold;
             white-space: nowrap;
-            margin-bottom: 4px;
         }
 
-        .record-history-right .edit-btn,
-        .record-history-right .delete-btn {
+        .record-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .record-actions .edit-btn,
+        .record-actions .delete-btn {
             display: block;
-            width: auto;
             background: none;
             border: none;
             cursor: pointer;
@@ -709,11 +713,11 @@
             text-align: right;
         }
 
-        .record-history-right .edit-btn {
+        .record-actions .edit-btn {
             color: var(--primary-color);
         }
 
-        .record-history-right .delete-btn {
+        .record-actions .delete-btn {
             color: #ff5252;
         }
 
@@ -731,7 +735,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.7</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.8</span></h1>
     
     <div class="options-container">
         <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
@@ -871,7 +875,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.7';
+            badge.textContent = 'v1.0.8';
             return;
         }
 
@@ -912,7 +916,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.7';
+            badge.textContent = 'v1.0.8';
         }
         fetchAppVersion();
 
@@ -1857,8 +1861,10 @@
                 </div>
                 <div class="record-history-right">
                     <span class="record-amount">${item.amount.toLocaleString()}${item.unit || '원'}</span>
-                    <button type="button" class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
-                    <button type="button" class="edit-btn" onclick="editRecord(${item.id})">수정</button>
+                    <div class="record-actions">
+                        <button type="button" class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
+                        <button type="button" class="edit-btn" onclick="editRecord(${item.id})">수정</button>
+                    </div>
                 </div>
             `;
             historyList.appendChild(div);
