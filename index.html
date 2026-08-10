@@ -680,6 +680,13 @@
         .type-point, .type-적립 { background-color: #e8f5e9; color: #2e7d32; }
         .type-cashback, .type-기타 { background-color: #e3f2fd; color: #1976d2; }
 
+        .record-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+
         .edit-btn {
             background: none;
             border: none;
@@ -687,6 +694,8 @@
             cursor: pointer;
             font-size: 0.8rem;
             flex-shrink: 0;
+            padding: 0;
+            line-height: 1.3;
         }
 
         .delete-btn {
@@ -696,6 +705,8 @@
             cursor: pointer;
             font-size: 0.8rem;
             flex-shrink: 0;
+            padding: 0;
+            line-height: 1.3;
         }
 
         .history-benefit-name {
@@ -1835,10 +1846,12 @@
                         <span style="font-size:0.75rem; color:#888; display:block;">${item.date}</span>
                     </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:6px;">
-                    <span style="font-weight:bold;">${item.amount.toLocaleString()}${item.unit || '원'}</span>
-                    <button class="edit-btn" onclick="editRecord(${item.id})">수정</button>
-                    <button class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-weight:bold; white-space:nowrap;">${item.amount.toLocaleString()}${item.unit || '원'}</span>
+                    <div class="record-actions">
+                        <button class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
+                        <button class="edit-btn" onclick="editRecord(${item.id})">수정</button>
+                    </div>
                 </div>
             `;
             historyList.appendChild(div);
