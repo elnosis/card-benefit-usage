@@ -795,7 +795,7 @@
                 </div>
                 <div class="form-group">
                     <label>혜택 선택</label>
-                    <select class="form-control" id="form-benefit" required>
+                    <select class="form-control" id="form-benefit" required onchange="onBenefitOrPaymentChange()">
                         <option value="">카드를 먼저 선택하세요</option>
                     </select>
                 </div>
@@ -804,8 +804,13 @@
                     <input type="date" class="form-control" id="form-date" required>
                 </div>
                 <div class="form-group">
-                    <label>혜택 금액 (원)</label>
-                    <input type="number" class="form-control" id="form-amount" placeholder="예: 1500" required min="0">
+                    <label>결제 금액 (원)</label>
+                    <input type="number" class="form-control" id="form-payment" placeholder="예: 15000" min="0" oninput="onBenefitOrPaymentChange()">
+                </div>
+                <div class="form-group">
+                    <label id="form-amount-label">혜택 금액 / 마일리지</label>
+                    <input type="number" class="form-control" id="form-amount" placeholder="자동 계산됩니다" required min="0">
+                    <span id="form-calc-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;"></span>
                 </div>
                 <button type="submit" class="submit-btn">저장하기</button>
             </form>
@@ -1086,13 +1091,14 @@
             const tiers = cardBenefitsData[cardName];
             if (!tiers) return;
 
-            const tierKeys = Object.keys(tiers).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+            const tierKeys = getTierKeys(tiers);
             const defaults = cardDefaults[cardName] || {};
             const currentTier = defaults.defaultTier || tierKeys[0];
-            const selectedOptions = defaults.selectedOptions || [];
+            // selectedOptionBenefits: { "1": "혜택명", "2": "혜택명" }
+            const selectedOptionBenefits = defaults.selectedOptionBenefits || {};
 
-            // 옵션이 있는 혜택 수집
-            const optionMap = {}; // optionValue -> [benefit names]
+            // 옵션 그룹별 혜택명 목록
+            const optionMap = {}; // optionValue -> Set of benefit names
             Object.values(tiers).forEach(benefits => {
                 benefits.forEach(b => {
                     if (b.option && b.option.trim()) {
@@ -1117,17 +1123,18 @@
             html += `</select></div>`;
 
             if (hasOptions) {
-                html += `<div class="option-group">
-                    <div class="option-group-title">옵션 혜택 선택 (중복 선택 가능)</div>
-                    <div class="option-chips">`;
                 Object.keys(optionMap).sort().forEach(opt => {
-                    const isActive = selectedOptions.includes(opt);
-                    const names = Array.from(optionMap[opt]).slice(0, 2).join(', ');
-                    html += `<span class="option-chip ${isActive ? 'active' : ''}" 
-                                data-card="${cardName}" data-option="${opt}"
-                                onclick="toggleOptionChip(this)">${opt}번 옵션</span>`;
+                    const names = Array.from(optionMap[opt]);
+                    const selectedName = selectedOptionBenefits[opt] || '';
+                    html += `<div class="option-group">
+                        <div class="option-group-title">옵션 ${opt} — 혜택 중 하나 선택</div>
+                        <select class="form-control option-benefit-select" data-option="${opt}" style="margin-top:4px;">
+                            <option value="">선택 안 함</option>`;
+                    names.forEach(n => {
+                        html += `<option value="${n}" ${n === selectedName ? 'selected' : ''}>${getBenefitEmoji(n)} ${n}</option>`;
+                    });
+                    html += `</select></div>`;
                 });
-                html += `</div></div>`;
             }
 
             html += `</div>`;
@@ -1135,26 +1142,25 @@
         });
     }
 
-    function toggleOptionChip(el) {
-        el.classList.toggle('active');
-    }
-
     function saveCardDefaults() {
         const blocks = document.querySelectorAll('#card-defaults-body .default-card-block');
         blocks.forEach(block => {
             const cardName = block.getAttribute('data-card');
             const tierSelect = block.querySelector('.default-tier-select');
-            const activeChips = block.querySelectorAll('.option-chip.active');
-            const selectedOptions = Array.from(activeChips).map(c => c.getAttribute('data-option'));
+            const optionSelects = block.querySelectorAll('.option-benefit-select');
+            const selectedOptionBenefits = {};
+            optionSelects.forEach(sel => {
+                const opt = sel.getAttribute('data-option');
+                if (sel.value) selectedOptionBenefits[opt] = sel.value;
+            });
 
             cardDefaults[cardName] = {
                 defaultTier: tierSelect ? tierSelect.value : '',
-                selectedOptions: selectedOptions
+                selectedOptionBenefits: selectedOptionBenefits
             };
         });
         saveData();
         closeCardDefaultsModal();
-        // 현재 조회 중인 월 화면도 갱신
         const selectedMonth = document.getElementById('month-spinner').value;
         if (selectedMonth !== 'ALL') {
             renderMonthStatus(selectedMonth);
@@ -1209,22 +1215,92 @@
     /* --- 한도 숫자 추출 --- */
     function parseLimitAmount(limitStr) {
         if (!limitStr || limitStr === '무제한' || limitStr.trim() === '') return null;
-        // "통합 15000원", "10000원", "2000마일" 등에서 숫자 추출
-        const match = limitStr.replace(/,/g, '').match(/(\d+)/);
+        const match = String(limitStr).replace(/,/g, '').match(/(\d+)/);
         return match ? parseInt(match[1], 10) : null;
     }
 
-    /* --- 실적 구간 표시명 (0만원 → 실적 없음) --- */
+    function isMileageUnit(rate, limit) {
+        const s = `${rate || ''} ${limit || ''}`;
+        return /마일/.test(s);
+    }
+
+    function getUnitLabel(rate, limit) {
+        return isMileageUnit(rate, limit) ? '마일' : '원';
+    }
+
+    function isIntegratedLimit(limitStr) {
+        return limitStr && String(limitStr).includes('통합');
+    }
+
+    /* 결제금액 + 할인율/금액 식으로 혜택 수치 계산 */
+    function calculateBenefitAmount(payment, rateStr, limitStr) {
+        if (!rateStr || payment == null || payment < 0) return 0;
+        const rate = String(rateStr).replace(/\s/g, '');
+        let benefit = 0;
+
+        // 마일리지: "1마일/1000원", "2마일/1000원"
+        const mileMatch = rate.match(/(\d+)\s*마일\s*\/\s*(\d+)\s*원/);
+        if (mileMatch) {
+            const per = parseInt(mileMatch[1], 10);
+            const base = parseInt(mileMatch[2], 10) || 1000;
+            benefit = Math.floor(payment / base) * per;
+        }
+        // 정액: "2000원", "6000원"
+        else if (/^\d+원$/.test(rate)) {
+            benefit = parseInt(rate, 10) || 0;
+        }
+        // 비율: "10%", "50%", "5%"
+        else if (/%$/.test(rate) || rate.includes('%')) {
+            const pctMatch = rate.match(/(\d+(?:\.\d+)?)\s*%/);
+            if (pctMatch) {
+                benefit = Math.floor(payment * parseFloat(pctMatch[1]) / 100);
+            }
+        }
+        // "50%•30%" 같은 복합은 첫 비율 사용
+        else {
+            const pctMatch = rate.match(/(\d+(?:\.\d+)?)\s*%/);
+            if (pctMatch) {
+                benefit = Math.floor(payment * parseFloat(pctMatch[1]) / 100);
+            } else {
+                const numMatch = rate.match(/(\d+)/);
+                if (numMatch) benefit = parseInt(numMatch[1], 10);
+            }
+        }
+
+        // 월간 한도로 캡
+        const limitNum = parseLimitAmount(limitStr);
+        if (limitNum != null && benefit > limitNum) {
+            benefit = limitNum;
+        }
+        return Math.max(0, benefit);
+    }
+
     function formatTierLabel(tier) {
         if (!tier) return '';
         const normalized = String(tier).replace(/\s/g, '');
-        if (normalized === '0만원' || normalized === '0원' || normalized === '없음') {
+        if (normalized === '0만원' || normalized === '0원' || normalized === '없음' || normalized === '__none__') {
             return '실적 없음';
         }
         return tier;
     }
 
-    /* --- 혜택명 키워드 → 이모티콘 --- */
+    /* 모든 카드에 실적 없음(0만원) 티어 보장 */
+    function getTierKeys(tiers) {
+        const keys = Object.keys(tiers || {});
+        if (!keys.includes('0만원')) {
+            keys.push('0만원');
+        }
+        return keys.sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+    }
+
+    function getBenefitsForTier(tiers, tier) {
+        if (!tiers) return [];
+        if (tier === '0만원' || tier === '__none__') {
+            return tiers['0만원'] || [];
+        }
+        return tiers[tier] || [];
+    }
+
     function getBenefitEmoji(name) {
         if (!name) return '🏷️';
         const n = name.toLowerCase();
@@ -1248,6 +1324,16 @@
         if (/교보|도서|책/.test(n)) return '📚';
         if (/수수료/.test(n)) return '🆓';
         return '🏷️';
+    }
+
+    /* 혜택 메타 조회 (카드+혜택명) */
+    function findBenefitMeta(cardName, benefitName) {
+        if (!cardBenefitsData || !cardBenefitsData[cardName]) return null;
+        for (const benefits of Object.values(cardBenefitsData[cardName])) {
+            const found = benefits.find(b => b.name === benefitName);
+            if (found) return found;
+        }
+        return null;
     }
 
     /* --- 카드 순서 --- */
@@ -1314,31 +1400,27 @@
             const tiers = cardBenefitsData[cardName];
             if (!tiers) return;
 
-            const tierKeys = Object.keys(tiers).sort((a, b) => {
-                // 숫자 기준 정렬 (0만원, 20만원, 30만원 ...)
-                const na = parseInt(a) || 0;
-                const nb = parseInt(b) || 0;
-                return na - nb;
-            });
+            const tierKeys = getTierKeys(tiers);
 
             // 현재 선택된 티어 (월별 설정 > 기본 설정 > 가장 낮은 티어)
             const defaults = cardDefaults[cardName] || {};
             let selectedTier = monthPerf[cardName] || defaults.defaultTier || tierKeys[0];
-            if (!tiers[selectedTier]) selectedTier = tierKeys[0];
+            if (!tierKeys.includes(selectedTier)) selectedTier = tierKeys[0];
 
-            // 선택된 옵션에 따라 혜택 필터링 (옵션이 없는 혜택은 항상 표시)
-            const selectedOptions = defaults.selectedOptions || [];
-            let benefits = (tiers[selectedTier] || []).filter(b => {
-                if (!b.option || !b.option.trim()) return true; // 옵션 없는 혜택은 항상 표시
-                if (selectedOptions.length === 0) return true; // 옵션 설정 안 했으면 모두 표시
-                return selectedOptions.includes(b.option);
+            // 선택된 옵션 혜택: 옵션 그룹별 선택된 혜택명만 표시
+            const selectedOptionBenefits = defaults.selectedOptionBenefits || {};
+            let benefits = getBenefitsForTier(tiers, selectedTier).filter(b => {
+                if (!b.option || !b.option.trim()) return true;
+                const chosen = selectedOptionBenefits[b.option];
+                // 옵션 선택을 안 했으면 해당 옵션 혜택 전부 숨김 (전월실적으로 받을 수 있는 것만 명확히)
+                if (!chosen) return false;
+                return b.name === chosen;
             });
 
             const cardDiv = document.createElement('div');
             cardDiv.className = 'card-item';
             cardDiv.setAttribute('data-card', cardName);
 
-            // 헤더
             let html = `
                 <div class="card-header">
                     <div class="card-title-group">
@@ -1370,9 +1452,76 @@
             `;
 
             if (benefits.length === 0) {
-                html += `<div style="font-size:0.85rem;color:#aaa;">이 실적 구간에 해당하는 혜택이 없습니다.</div>`;
+                html += `<div style="font-size:0.85rem;color:var(--text-muted);">이 실적 구간에 해당하는 혜택이 없습니다.</div>`;
             } else {
+                // 통합 한도 그룹핑
+                const integratedGroups = {}; // limitStr -> [benefits]
+                const normalBenefits = [];
                 benefits.forEach(ben => {
+                    if (isIntegratedLimit(ben.limit)) {
+                        const key = ben.limit;
+                        if (!integratedGroups[key]) integratedGroups[key] = [];
+                        integratedGroups[key].push(ben);
+                    } else {
+                        normalBenefits.push(ben);
+                    }
+                });
+
+                // 통합 한도 그룹 렌더
+                Object.keys(integratedGroups).forEach(limitKey => {
+                    const group = integratedGroups[limitKey];
+                    const limitNum = parseLimitAmount(limitKey);
+                    const unit = getUnitLabel(group[0].rate, limitKey);
+                    const names = group.map(b => b.name);
+                    const used = benefitData
+                        .filter(item => item.cardName === cardName &&
+                                        names.includes(item.benefitName) &&
+                                        item.date.startsWith(targetMonth))
+                        .reduce((sum, item) => sum + item.amount, 0);
+                    const isUnlimited = !limitNum;
+                    const remain = isUnlimited ? null : Math.max(0, limitNum - used);
+                    const percent = isUnlimited ? 0 : Math.min(100, Math.round((used / limitNum) * 100));
+                    const isExhausted = !isUnlimited && remain === 0;
+                    const disabledClass = isExhausted ? ' disabled' : '';
+
+                    html += `<div class="benefit-item${disabledClass}">
+                        <div class="benefit-item-header">
+                            <span class="benefit-name">🔗 통합 한도 혜택</span>
+                            <span class="type type-청구할인">통합</span>
+                        </div>
+                        <div class="benefit-meta">${group.map(b => getBenefitEmoji(b.name) + ' ' + b.name).join(' · ')}</div>`;
+
+                    if (isUnlimited) {
+                        html += `<div class="benefit-limit-row">
+                            <span>사용: <strong>${used.toLocaleString()}${unit}</strong></span>
+                            <span class="no-limit-text">한도 없음</span>
+                        </div>`;
+                    } else {
+                        html += `<div class="benefit-limit-row">
+                            <span>사용: <strong>${used.toLocaleString()}${unit}</strong> / ${limitNum.toLocaleString()}${unit}</span>
+                            <span class="benefit-remaining">${isExhausted ? '한도 소진' : '잔여: ' + remain.toLocaleString() + unit}</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" style="width:${percent}%"></div>
+                        </div>`;
+                    }
+                    html += `</div>`;
+
+                    // 개별 혜택명만 간단히 표시 (한도 바 없이)
+                    group.forEach(ben => {
+                        const typeClass = 'type-' + (ben.type || 'discount').replace(/\s/g, '');
+                        html += `<div class="benefit-item" style="margin-left:8px;opacity:0.9;">
+                            <div class="benefit-item-header">
+                                <span class="benefit-name">${getBenefitEmoji(ben.name)} ${ben.name}</span>
+                                <span class="type ${typeClass}">${ben.type || ''}</span>
+                            </div>
+                            <div class="benefit-meta">${ben.rate || ''} (통합 한도 적용)</div>
+                        </div>`;
+                    });
+                });
+
+                // 일반 혜택 렌더
+                normalBenefits.forEach(ben => {
                     const used = benefitData
                         .filter(item => item.cardName === cardName &&
                                         item.benefitName === ben.name &&
@@ -1380,10 +1529,10 @@
                         .reduce((sum, item) => sum + item.amount, 0);
 
                     const limitNum = parseLimitAmount(ben.limit);
+                    const unit = getUnitLabel(ben.rate, ben.limit);
                     const isUnlimited = !limitNum;
                     const remain = isUnlimited ? null : Math.max(0, limitNum - used);
                     const percent = isUnlimited ? 0 : Math.min(100, Math.round((used / limitNum) * 100));
-
                     const typeClass = 'type-' + (ben.type || 'discount').replace(/\s/g, '');
                     const isExhausted = !isUnlimited && remain === 0;
                     const emoji = getBenefitEmoji(ben.name);
@@ -1401,15 +1550,15 @@
                     if (isUnlimited) {
                         html += `
                             <div class="benefit-limit-row">
-                                <span>사용 금액: <strong>${used.toLocaleString()}원</strong></span>
+                                <span>사용: <strong>${used.toLocaleString()}${unit}</strong></span>
                                 <span class="no-limit-text">${ben.limit || '한도 없음'}</span>
                             </div>
                         `;
                     } else {
                         html += `
                             <div class="benefit-limit-row">
-                                <span>사용: <strong>${used.toLocaleString()}원</strong> / ${limitNum.toLocaleString()}원</span>
-                                <span class="benefit-remaining">${isExhausted ? '한도 소진' : '잔여: ' + remain.toLocaleString() + '원'}</span>
+                                <span>사용: <strong>${used.toLocaleString()}${unit}</strong> / ${limitNum.toLocaleString()}${unit}</span>
+                                <span class="benefit-remaining">${isExhausted ? '한도 소진' : '잔여: ' + remain.toLocaleString() + unit}</span>
                             </div>
                             <div class="progress-bar-bg">
                                 <div class="progress-bar-fill" style="width:${percent}%"></div>
@@ -1498,7 +1647,6 @@
             return;
         }
 
-        // 모든 티어의 혜택을 중복 없이 모음
         const benefitMap = new Map();
         Object.values(cardBenefitsData[cardName]).forEach(benefits => {
             benefits.forEach(b => {
@@ -1512,10 +1660,47 @@
         benefitMap.forEach((b, name) => {
             const opt = document.createElement('option');
             opt.value = name;
-            opt.textContent = `${name} (${b.type})`;
-            opt.dataset.type = b.type;
+            opt.textContent = `${getBenefitEmoji(name)} ${name} (${b.type})`;
+            opt.dataset.type = b.type || '';
+            opt.dataset.rate = b.rate || '';
+            opt.dataset.limit = b.limit || '';
             benefitSelect.appendChild(opt);
         });
+
+        document.getElementById('form-payment').value = '';
+        document.getElementById('form-amount').value = '';
+        document.getElementById('form-calc-hint').textContent = '';
+    }
+
+    function onBenefitOrPaymentChange() {
+        const cardName = document.getElementById('form-card').value;
+        const benefitName = document.getElementById('form-benefit').value;
+        const payment = Number(document.getElementById('form-payment').value) || 0;
+        const amountInput = document.getElementById('form-amount');
+        const amountLabel = document.getElementById('form-amount-label');
+        const hint = document.getElementById('form-calc-hint');
+
+        if (!cardName || !benefitName) {
+            amountLabel.textContent = '혜택 금액 / 마일리지';
+            hint.textContent = '';
+            return;
+        }
+
+        const meta = findBenefitMeta(cardName, benefitName);
+        if (!meta) return;
+
+        const unit = getUnitLabel(meta.rate, meta.limit);
+        amountLabel.textContent = unit === '마일' ? '적립 마일리지' : '혜택 금액 (원)';
+
+        if (payment <= 0) {
+            amountInput.value = '';
+            hint.textContent = `계산식: ${meta.rate || '-'} / 한도: ${meta.limit || '없음'}`;
+            return;
+        }
+
+        const calculated = calculateBenefitAmount(payment, meta.rate, meta.limit);
+        amountInput.value = calculated;
+        hint.textContent = `자동 계산: ${meta.rate || '-'} → ${calculated.toLocaleString()}${unit} (한도: ${meta.limit || '없음'}) · 수동 수정 가능`;
     }
 
     function handleFormSubmit(e) {
@@ -1529,13 +1714,17 @@
         const benefitName = document.getElementById('form-benefit').value;
         const date = document.getElementById('form-date').value;
         const amount = Number(document.getElementById('form-amount').value);
+        const payment = Number(document.getElementById('form-payment').value) || 0;
         const benefitSelect = document.getElementById('form-benefit');
         const type = benefitSelect.options[benefitSelect.selectedIndex]?.dataset?.type || '';
 
-        if (!cardName || !benefitName || !date || amount < 0) {
+        if (!cardName || !benefitName || !date || amount < 0 || isNaN(amount)) {
             alert('모든 항목을 올바르게 입력해 주세요.');
             return;
         }
+
+        const meta = findBenefitMeta(cardName, benefitName);
+        const unit = meta ? getUnitLabel(meta.rate, meta.limit) : '원';
 
         benefitData.push({
             id: Date.now(),
@@ -1543,11 +1732,15 @@
             benefitName,
             type,
             date,
-            amount
+            amount,
+            payment,
+            unit
         });
         saveData();
         renderAll();
         document.getElementById('form-amount').value = '';
+        document.getElementById('form-payment').value = '';
+        document.getElementById('form-calc-hint').textContent = '';
         closeAddRecordModal();
     }
 
@@ -1580,7 +1773,7 @@
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
-                    <span style="font-weight:bold;">${item.amount.toLocaleString()}원</span>
+                    <span style="font-weight:bold;">${item.amount.toLocaleString()}${item.unit || '원'}</span>
                     <button class="delete-btn" onclick="deleteRecord(${item.id})">삭제</button>
                 </div>
             `;
