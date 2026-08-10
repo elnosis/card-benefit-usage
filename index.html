@@ -743,7 +743,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.14</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.15</span></h1>
     
     <div class="options-container">
         <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
@@ -823,8 +823,10 @@
 
     <!-- TAB 3: 특정 혜택 기록 상세 (기간 선택 없음, 단말 Back으로 복귀) -->
     <div id="tab-detail" class="tab-content">
-        <div class="filter-box" style="justify-content:flex-start;">
-            <span id="detail-title" style="font-size:0.9rem; font-weight:600; color:var(--text-color);"></span>
+        <div class="filter-box detail-title-box" style="flex-direction:column; align-items:flex-start; gap:4px;">
+            <div id="detail-card-name" style="font-size:0.95rem; font-weight:700; color:var(--text-color);"></div>
+            <div id="detail-benefit-name" style="font-size:0.9rem; font-weight:600; color:var(--text-color);"></div>
+            <div id="detail-month" style="font-size:0.8rem; color:var(--text-muted);"></div>
         </div>
         <div class="record-card">
             <div class="record-history-list" id="detail-history-list"></div>
@@ -902,7 +904,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.14';
+            badge.textContent = 'v1.0.15';
             return;
         }
 
@@ -955,7 +957,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.14';
+            badge.textContent = 'v1.0.15';
         }
         fetchAppVersion();
 
@@ -1286,6 +1288,12 @@
         document.getElementById(tabId).classList.add('active');
         if (btn) btn.classList.add('active');
 
+        // 상세 화면이 아닐 때만 탭 메뉴 표시
+        const tabMenu = document.querySelector('.tab-menu');
+        if (tabMenu) {
+            tabMenu.style.display = (tabId === 'tab-detail') ? 'none' : 'flex';
+        }
+
         // 기록 탭에서만 FAB 표시
         const fab = document.getElementById('fab-add');
         if (fab) {
@@ -1305,12 +1313,21 @@
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-detail').classList.add('active');
 
+        const tabMenu = document.querySelector('.tab-menu');
+        if (tabMenu) tabMenu.style.display = 'none';
+
         const fab = document.getElementById('fab-add');
         if (fab) fab.style.display = 'none';
 
-        const monthLabel = (!month || month === 'ALL') ? '전체' : month.replace('-', '년 ') + '월';
-        document.getElementById('detail-title').textContent =
-            `${getBenefitEmoji(benefitName)} ${benefitName} · ${cardName} · ${monthLabel}`;
+        const monthLabel = (!month || month === 'ALL')
+            ? '전체'
+            : month.replace(/^(\d{4})-(\d{2})$/, '$1년 $2월');
+
+        document.getElementById('detail-card-name').textContent = formatCardLabel(cardName);
+        document.getElementById('detail-benefit-name').textContent =
+            `${getBenefitEmoji(benefitName)} ${benefitName}`;
+        document.getElementById('detail-month').textContent = `조회월: ${monthLabel}`;
+
         renderDetailHistoryList();
 
         // 단말 Back 키로 현황 복귀할 수 있도록 히스토리 추가
