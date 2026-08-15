@@ -782,7 +782,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.27</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.28</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingSearch()" aria-label="이 달의 남은 혜택 검색" title="이 달의 남은 혜택 검색">🔍</button>
@@ -896,7 +896,7 @@
         <div class="filter-box" style="flex-direction:column; align-items:flex-start; gap:4px;">
             <div style="font-size:0.95rem; font-weight:700;">🍒 이 달의 남은 혜택</div>
             <div style="font-size:0.8rem; color:var(--text-muted);" id="remaining-list-month-label"></div>
-            <div style="font-size:0.78rem; color:var(--text-muted);">잔여 한도가 많은 순으로 표시됩니다.</div>
+            <div style="font-size:0.78rem; color:var(--text-muted);">잔여 한도가 많은 순 · 남은 혜택 전체 표시</div>
         </div>
         <div id="remaining-list-results"></div>
     </div>
@@ -972,7 +972,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.27';
+            badge.textContent = 'v1.0.28';
             return;
         }
 
@@ -1025,7 +1025,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.27';
+            badge.textContent = 'v1.0.28';
         }
         fetchAppVersion();
 
@@ -1648,11 +1648,13 @@
         });
     }
 
-    // applyThreeMonthFilter: true면 알림 본문용(최근 3개월 미사용 제외)
+    // applyThreeMonthFilter === true 일 때만 알림 본문용 3개월 필터 적용
+    // 화면(이 달의 남은 혜택)은 반드시 false 로 호출
     function collectRemainingBenefits(month, applyThreeMonthFilter) {
         if (!cardBenefitsData) return [];
         const monthPerf = performanceData[month] || {};
-        const applyUsageFilter = !!applyThreeMonthFilter && hasUsageInLastThreeMonths();
+        // false / undefined 이면 절대 3개월 필터 사용 안 함
+        const applyUsageFilter = applyThreeMonthFilter === true && hasUsageInLastThreeMonths();
         const results = [];
 
         getCardOrder().forEach(cardName => {
@@ -1672,7 +1674,9 @@
             });
 
             benefits.forEach(ben => {
-                if (applyUsageFilter && !wasBenefitUsedInLastThreeMonths(cardName, ben.name)) return;
+                // 알림 본문 전용 필터 (화면에서는 applyThreeMonthFilter=false)
+                if (applyThreeMonthFilter === true && applyUsageFilter &&
+                    !wasBenefitUsedInLastThreeMonths(cardName, ben.name)) return;
 
                 let used = 0;
                 if (isIntegratedLimit(ben.limit)) {
