@@ -782,7 +782,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.26</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.27</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingSearch()" aria-label="이 달의 남은 혜택 검색" title="이 달의 남은 혜택 검색">🔍</button>
@@ -972,7 +972,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.26';
+            badge.textContent = 'v1.0.27';
             return;
         }
 
@@ -1025,7 +1025,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.26';
+            badge.textContent = 'v1.0.27';
         }
         fetchAppVersion();
 
@@ -1648,10 +1648,11 @@
         });
     }
 
-    function collectRemainingBenefits(month) {
+    // applyThreeMonthFilter: true면 알림 본문용(최근 3개월 미사용 제외)
+    function collectRemainingBenefits(month, applyThreeMonthFilter) {
         if (!cardBenefitsData) return [];
         const monthPerf = performanceData[month] || {};
-        const applyUsageFilter = hasUsageInLastThreeMonths();
+        const applyUsageFilter = !!applyThreeMonthFilter && hasUsageInLastThreeMonths();
         const results = [];
 
         getCardOrder().forEach(cardName => {
@@ -1713,7 +1714,8 @@
     }
 
     function getTopRemainingBenefits(n) {
-        return collectRemainingBenefits(getCurrentYearMonth()).slice(0, n || 3);
+        // 알림 본문만 최근 3개월 사용 이력 필터 적용
+        return collectRemainingBenefits(getCurrentYearMonth(), true).slice(0, n || 3);
     }
 
     function openRemainingList() {
@@ -1748,17 +1750,14 @@
             return;
         }
 
-        const results = collectRemainingBenefits(getCurrentYearMonth());
+        // 화면: 필터 없이 남은 혜택 전체
+        const results = collectRemainingBenefits(getCurrentYearMonth(), false);
         if (!results.length) {
             resultsEl.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);text-align:center;padding:20px;">남은 혜택이 없습니다.</div>';
             return;
         }
 
-        const filterNote = hasUsageInLastThreeMonths()
-            ? '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;">※ 최근 3개월간 사용한 적 있는 혜택만 표시</div>'
-            : '';
-
-        resultsEl.innerHTML = filterNote + results.map(r => {
+        resultsEl.innerHTML = results.map(r => {
             const remainText = r.isUnlimited
                 ? `사용 ${r.used.toLocaleString()}${r.unit} · 한도 없음`
                 : `잔여 ${r.remain.toLocaleString()}${r.unit} / ${r.limitNum.toLocaleString()}${r.unit}`;
