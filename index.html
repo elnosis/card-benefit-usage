@@ -782,7 +782,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>카드 피커 체리 <span class="version-badge" id="app-version">v1.0.31</span></h1>
+    <h1>카드 피커 체리 <span class="version-badge" id="app-version">v1.0.33</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList()" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🍒</button>
@@ -816,6 +816,22 @@
         <div class="modal-footer">
             <button class="modal-btn modal-btn-secondary" onclick="closeCardDefaultsModal()">취소</button>
             <button class="modal-btn modal-btn-primary" onclick="saveCardDefaults()">저장하기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 이 달의 남은 혜택 인앱 알림 팝업 -->
+<div class="modal-overlay" id="remaining-alert-modal">
+    <div class="modal-content" style="max-width:360px;">
+        <div class="modal-header">
+            <h2>🍒 남은 혜택 알림</h2>
+            <button class="modal-close" onclick="closeRemainingAlertPopup()">×</button>
+        </div>
+        <div class="modal-body">
+            <div id="remaining-alert-body" style="font-size:0.9rem; line-height:1.55; white-space:pre-line;"></div>
+        </div>
+        <div class="modal-footer" style="justify-content:flex-end;">
+            <button class="modal-btn modal-btn-primary" onclick="closeRemainingAlertPopup()">닫기</button>
         </div>
     </div>
 </div>
@@ -973,7 +989,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.31';
+            badge.textContent = 'v1.0.33';
             return;
         }
 
@@ -1026,7 +1042,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.31';
+            badge.textContent = 'v1.0.33';
         }
         fetchAppVersion();
 
@@ -1036,13 +1052,9 @@
         // 알림 클릭 등으로 진입
         tryOpenRemainingListFromContext();
 
-        // 저장된 알림 일정 재등록
-        if (notificationSchedules.length && Notification.permission === 'granted') {
-            scheduleRemainingNotifications();
-        }
-        // 로컬 폴링 (분 단위) — Trigger 미지원 환경 보완
-        checkDueNotificationsLocally();
-        setInterval(checkDueNotificationsLocally, 30000);
+        // 일정 저장 동기화 + 홈 진입 시 지난 일정 팝업
+        scheduleRemainingNotifications();
+        setTimeout(() => checkDueInAppAlertPopup(), 300);
     });
 
     function tryOpenRemainingListFromContext() {
@@ -1389,8 +1401,8 @@
             <div class="default-card-block">
                 <div class="default-card-name">🔔 이 달의 남은 혜택 알림</div>
                 <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;line-height:1.45;">
-                    매월 지정한 일자·시각에 알림을 보냅니다. 알림을 누르면 남은 혜택 화면으로 이동합니다.<br>
-                    (Android에 홈 화면 추가된 PWA + 알림 권한 필요. 백그라운드 예약은 Chrome 등 지원 브라우저에서 동작합니다.)
+                    매월 지정한 일자·시각이 지난 뒤, 앱 홈 화면에 들어올 때 <strong>1회 팝업</strong>으로 알려 줍니다.<br>
+                    (시스템 알림이 아니라 앱 안 팝업입니다. 닫기 전까지 같은 일정은 다시 뜨지 않습니다.)
                 </div>
                 <div id="notify-schedule-list"></div>
                 <div class="default-row" style="margin-top:10px; flex-wrap:wrap; gap:8px; align-items:center;">
@@ -1406,15 +1418,10 @@
                     </select>
                     <button type="button" class="modal-btn modal-btn-secondary" style="padding:6px 12px;" onclick="addNotifySchedule()">일정 추가</button>
                 </div>
-                <div style="margin-top:10px;">
-                    <button type="button" class="modal-btn modal-btn-secondary" style="padding:6px 12px;" onclick="requestNotifyPermission()">알림 권한 요청</button>
-                    <span id="notify-permission-status" style="font-size:0.75rem;color:var(--text-muted);margin-left:8px;"></span>
-                </div>
             </div>
         `;
         body.insertAdjacentHTML('beforeend', notifyHtml);
         renderNotifySchedulesUI();
-        updateNotifyPermissionStatus();
 
         // 카드 기본 설정 섹션
         if (!cardBenefitsData || Object.keys(cardBenefitsData).length === 0) {
@@ -1528,100 +1535,74 @@
         return new Date(year, monthIndex + 1, 0).getDate();
     }
 
-    async function scheduleRemainingNotifications() {
+    function scheduleRemainingNotifications() {
+        // 일정만 저장 — 시스템 푸시 없이 홈 진입 시 팝업으로 처리
         localStorage.setItem('card_picker_cherry_notify_schedules', JSON.stringify(notificationSchedules));
-
-        if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
-        if (Notification.permission !== 'granted') return;
-
-        const reg = await navigator.serviceWorker.ready;
-        // 기존 같은 태그 알림 정리 시도
-        try {
-            const existing = await reg.getNotifications({ includeTriggered: true });
-            for (const n of existing) {
-                if (n.tag && n.tag.startsWith('remaining-alert-')) n.close();
-            }
-        } catch (e) { /* ignore */ }
-
-        const top3 = getTopRemainingBenefits(3);
-        const bodyText = top3.length
-            ? top3.map((r, i) => {
-                const remain = r.isUnlimited ? '한도없음' : `${r.remain.toLocaleString()}${r.unit}`;
-                return `${i + 1}. [${r.cardName}] ${r.benefit.name} (${remain})`;
-            }).join('\n')
-            : '이 달의 남은 카드 혜택을 확인해 보세요.';
-
-        const payload = {
-            type: 'SCHEDULE_REMAINING_ALERTS',
-            schedules: notificationSchedules.map(s => ({
-                id: s.id,
-                day: s.day,
-                hour: s.hour,
-                minute: s.minute || 0,
-                timestamp: getNextTriggerTimestamp(s.day, s.hour, s.minute || 0),
-                body: bodyText
-            }))
-        };
-
-        if (navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage(payload);
-        } else if (reg.active) {
-            reg.active.postMessage(payload);
-        }
     }
 
-    /* TimestampTrigger 미지원 시: 앱이 열려 있을 때 분 단위로 확인 후 알림 */
-    async function checkDueNotificationsLocally() {
-        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    function buildRemainingAlertBodyText() {
+        const top3 = getTopRemainingBenefits(3);
+        if (!top3.length) {
+            return '이 달의 남은 카드 혜택을 확인해 보세요.';
+        }
+        return top3.map((r, i) => {
+            const remain = r.isUnlimited ? '한도없음' : `${r.remain.toLocaleString()}${r.unit}`;
+            return `${i + 1}. [${r.cardName}] ${r.benefit.name} (${remain})`;
+        }).join('\n');
+    }
+
+    function showRemainingAlertPopup(bodyText) {
+        const modal = document.getElementById('remaining-alert-modal');
+        const bodyEl = document.getElementById('remaining-alert-body');
+        if (!modal || !bodyEl) return;
+        bodyEl.textContent = bodyText || buildRemainingAlertBodyText();
+        modal.classList.add('show');
+    }
+
+    function closeRemainingAlertPopup() {
+        const modal = document.getElementById('remaining-alert-modal');
+        if (modal) modal.classList.remove('show');
+    }
+
+    /* 홈 화면 진입 시: 설정한 일정이 지났으면 월 1회 팝업 */
+    function checkDueInAppAlertPopup() {
         if (!notificationSchedules.length) return;
 
+        // 상세/검색/남은혜택 화면이 떠 있으면 홈이 아님
+        const remainingTab = document.getElementById('tab-remaining');
+        const searchTab = document.getElementById('tab-search');
+        const detailTab = document.getElementById('tab-detail');
+        if (remainingTab && remainingTab.classList.contains('active')) return;
+        if (searchTab && searchTab.classList.contains('active')) return;
+        if (detailTab && detailTab.classList.contains('active')) return;
+
         const now = new Date();
-        const day = now.getDate();
-        const hour = now.getHours();
-        const minute = now.getMinutes();
-        const dayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        const monthKey = `${y}-${String(m + 1).padStart(2, '0')}`;
 
-        for (const s of notificationSchedules) {
-            if (s.day !== day || s.hour !== hour || (s.minute || 0) !== minute) continue;
-            const fireKey = `${s.id}@${dayKey}`;
-            if (notifyLastFired[fireKey]) continue;
-            notifyLastFired[fireKey] = true;
-            localStorage.setItem('card_picker_cherry_notify_fired', JSON.stringify(notifyLastFired));
+        // 가장 이른 지난 일정 하나 팝업
+        const due = notificationSchedules
+            .map(s => {
+                const day = Math.min(s.day, daysInMonth(y, m));
+                const at = new Date(y, m, day, s.hour, s.minute || 0, 0, 0);
+                return { s, at };
+            })
+            .filter(({ s, at }) => {
+                if (at.getTime() > now.getTime()) return false;
+                const fireKey = `popup-${s.id}@${monthKey}`;
+                return !notifyLastFired[fireKey];
+            })
+            .sort((a, b) => a.at - b.at);
 
-            const top3 = getTopRemainingBenefits(3);
-            const bodyText = top3.length
-                ? top3.map((r, i) => {
-                    const remain = r.isUnlimited ? '한도없음' : `${r.remain.toLocaleString()}${r.unit}`;
-                    return `${i + 1}. [${r.cardName}] ${r.benefit.name} (${remain})`;
-                }).join('\n')
-                : '이 달의 남은 카드 혜택을 확인해 보세요.';
+        if (!due.length) return;
 
-            try {
-                const reg = await navigator.serviceWorker.ready;
-                // 반드시 SW 경유 → notificationclick 에서 화면 이동 처리
-                await reg.showNotification('🍒 남은 혜택 알림', {
-                    body: bodyText,
-                    tag: 'remaining-alert-' + s.id,
-                    renotify: true,
-                    data: { action: 'open-remaining-list' },
-                    icon: './icon-192.png',
-                    badge: './icon-192.png'
-                });
-            } catch (err) {
-                try {
-                    const n = new Notification('🍒 남은 혜택 알림', {
-                        body: bodyText,
-                        tag: 'remaining-alert-' + s.id
-                    });
-                    n.onclick = () => {
-                        try { window.focus(); } catch (e) {}
-                        sessionStorage.setItem('openRemainingList', '1');
-                        openRemainingList();
-                        try { n.close(); } catch (e) {}
-                    };
-                } catch (e2) { /* ignore */ }
-            }
-        }
+        const { s } = due[0];
+        const fireKey = `popup-${s.id}@${monthKey}`;
+        notifyLastFired[fireKey] = true;
+        localStorage.setItem('card_picker_cherry_notify_fired', JSON.stringify(notifyLastFired));
+
+        showRemainingAlertPopup(buildRemainingAlertBodyText());
     }
 
     /* 최근 3개월 사용 이력 필터 + 이 달 남은 혜택 수집 */
@@ -1702,6 +1683,7 @@
                     const limitNum = parseLimitAmount(ben.limit);
                     const unit = getUnitLabel(ben.rate, ben.limit);
                     const isUnlimited = !limitNum;
+                    const isMileage = isMileageUnit(ben.rate, ben.limit);
                     const remain = isUnlimited ? null : Math.max(0, limitNum - used);
                     if (!isUnlimited && remain <= 0) return;
 
@@ -1724,7 +1706,9 @@
                         limitNum,
                         unit,
                         isUnlimited,
-                        remainScore: isUnlimited ? -1 : remain
+                        isMileage,
+                        // 하단 그룹(무제한·마일리지)은 remainScore 미사용
+                        remainScore: (isUnlimited || isMileage) ? -1 : remain
                     });
                     return;
                 }
@@ -1742,6 +1726,7 @@
                 const limitNum = parseLimitAmount(ben.limit);
                 const unit = getUnitLabel(ben.rate, ben.limit);
                 const isUnlimited = !limitNum;
+                const isMileage = isMileageUnit(ben.rate, ben.limit);
                 const remain = isUnlimited ? null : Math.max(0, limitNum - used);
                 if (!isUnlimited && remain <= 0) return;
 
@@ -1755,17 +1740,26 @@
                     limitNum,
                     unit,
                     isUnlimited,
-                    remainScore: isUnlimited ? -1 : remain
+                    isMileage,
+                    remainScore: (isUnlimited || isMileage) ? -1 : remain
                 });
             });
         });
 
-        // 잔여 많은 순, 무제한(한도 없음)은 맨 아래
+        // 잔여 많은 순 / 한도 무제한·마일리지는 맨 아래
         results.sort((a, b) => {
-            if (a.isUnlimited && !b.isUnlimited) return 1;
-            if (!a.isUnlimited && b.isUnlimited) return -1;
-            if (!a.isUnlimited && !b.isUnlimited) {
+            const aBottom = !!(a.isUnlimited || a.isMileage);
+            const bBottom = !!(b.isUnlimited || b.isMileage);
+            if (aBottom && !bBottom) return 1;
+            if (!aBottom && bBottom) return -1;
+            if (!aBottom && !bBottom) {
                 return b.remainScore - a.remainScore || a.cardName.localeCompare(b.cardName);
+            }
+            // 하단 그룹 내부: 마일리지 먼저, 무제한 나중 / 카드명
+            if (a.isMileage && b.isUnlimited && !b.isMileage) return -1;
+            if (b.isMileage && a.isUnlimited && !a.isMileage) return 1;
+            if (!a.isUnlimited && !b.isUnlimited) {
+                return (b.remain || 0) - (a.remain || 0) || a.cardName.localeCompare(b.cardName);
             }
             return a.cardName.localeCompare(b.cardName);
         });
@@ -1883,6 +1877,11 @@
 
         if (tabId === 'tab-records') {
             renderHistoryList();
+        }
+
+        // 홈(현황/기록) 진입 시 지난 알림 일정 팝업
+        if (tabId === 'tab-status' || tabId === 'tab-records') {
+            setTimeout(() => checkDueInAppAlertPopup(), 200);
         }
     }
 
