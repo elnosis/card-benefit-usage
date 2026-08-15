@@ -782,7 +782,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.25</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.26</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingSearch()" aria-label="이 달의 남은 혜택 검색" title="이 달의 남은 혜택 검색">🔍</button>
@@ -972,7 +972,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.25';
+            badge.textContent = 'v1.0.26';
             return;
         }
 
@@ -1025,7 +1025,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.25';
+            badge.textContent = 'v1.0.26';
         }
         fetchAppVersion();
 
@@ -1033,11 +1033,7 @@
         populateFormCards();
 
         // 알림 클릭 등으로 진입
-        const params = new URLSearchParams(location.search);
-        if (params.get('open') === 'remaining-list' || params.get('open') === 'remaining-search') {
-            history.replaceState({}, '', location.pathname + location.hash);
-            setTimeout(() => openRemainingList(), 200);
-        }
+        tryOpenRemainingListFromContext();
 
         // 저장된 알림 일정 재등록
         if (notificationSchedules.length && Notification.permission === 'granted') {
@@ -1048,14 +1044,43 @@
         setInterval(checkDueNotificationsLocally, 30000);
     });
 
+    function tryOpenRemainingListFromContext() {
+        const params = new URLSearchParams(location.search);
+        const fromQuery = params.get('open') === 'remaining-list' || params.get('open') === 'remaining-search';
+        const fromStorage = sessionStorage.getItem('openRemainingList') === '1';
+        if (fromQuery || fromStorage) {
+            sessionStorage.removeItem('openRemainingList');
+            if (fromQuery) {
+                history.replaceState({}, '', location.pathname + location.hash);
+            }
+            setTimeout(() => openRemainingList(), 150);
+            return true;
+        }
+        return false;
+    }
+
     // 서비스 워커 → 알림 클릭 시 남은 혜택 화면 열기
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('message', (event) => {
             if (event.data && (event.data.type === 'OPEN_REMAINING_LIST' || event.data.type === 'OPEN_REMAINING_SEARCH')) {
+                sessionStorage.setItem('openRemainingList', '1');
                 openRemainingList();
             }
         });
     }
+
+    // 백그라운드에서 복귀 시 대기 중인 화면 전환 처리
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            tryOpenRemainingListFromContext();
+        }
+    });
+    window.addEventListener('pageshow', () => {
+        tryOpenRemainingListFromContext();
+    });
+    window.addEventListener('focus', () => {
+        tryOpenRemainingListFromContext();
+    });
 
     // 외부 클릭 시 옵션 드롭다운 닫기
     document.addEventListener("click", () => {
@@ -1572,6 +1597,7 @@
 
             try {
                 const reg = await navigator.serviceWorker.ready;
+                // 반드시 SW 경유 → notificationclick 에서 화면 이동 처리
                 await reg.showNotification('🍒 남은 혜택 알림', {
                     body: bodyText,
                     tag: 'remaining-alert-' + s.id,
@@ -1582,10 +1608,16 @@
                 });
             } catch (err) {
                 try {
-                    new Notification('🍒 남은 혜택 알림', {
+                    const n = new Notification('🍒 남은 혜택 알림', {
                         body: bodyText,
                         tag: 'remaining-alert-' + s.id
                     });
+                    n.onclick = () => {
+                        try { window.focus(); } catch (e) {}
+                        sessionStorage.setItem('openRemainingList', '1');
+                        openRemainingList();
+                        try { n.close(); } catch (e) {}
+                    };
                 } catch (e2) { /* ignore */ }
             }
         }
