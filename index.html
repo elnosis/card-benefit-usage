@@ -139,13 +139,81 @@
             box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
         }
 
+        #remaining-alert-modal .modal-header {
+            border-bottom: none;
+            background: var(--primary-color);
+            color: #fff;
+            padding: 14px 18px;
+        }
+
+        #remaining-alert-modal .modal-header h2 {
+            color: #fff;
+            font-size: 1.05rem;
+        }
+
+        #remaining-alert-modal .modal-close {
+            color: rgba(255,255,255,0.9);
+        }
+
+        #remaining-alert-modal .modal-body {
+            padding: 16px 18px 8px;
+        }
+
         #remaining-alert-modal .modal-footer {
             justify-content: stretch;
             padding: 12px 16px 20px;
+            border-top: none;
         }
 
         #remaining-alert-modal .modal-footer .modal-btn {
             width: 100%;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 0;
+        }
+
+        .alert-item + .alert-item {
+            /* 항목 간격 (디바이더 없음) */
+            margin-top: 4px;
+        }
+
+        .alert-item-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .alert-item-card {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 3px;
+        }
+
+        .alert-item-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .alert-item-amount {
+            flex-shrink: 0;
+            text-align: right;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            white-space: nowrap;
+            padding-top: 2px;
+        }
+
+        .alert-empty {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 12px 0;
         }
 
         .modal-header {
@@ -806,7 +874,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>카드 피커 체리 <span class="version-badge" id="app-version">v1.0.34</span></h1>
+    <h1>카드 피커 체리 <span class="version-badge" id="app-version">v1.0.35</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList()" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🍒</button>
@@ -815,9 +883,9 @@
             <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
             <div class="options-dropdown" id="options-dropdown">
                 <button onclick="triggerCardBenefitsImport()">📥 카드 혜택 가져오기</button>
-                <button onclick="openCardDefaultsModal()">⚙️ 설정</button>
                 <button onclick="exportData()">📤 사용 기록 내보내기</button>
                 <button onclick="triggerImport()">📥 사용 기록 가져오기</button>
+                <button onclick="openCardDefaultsModal()">⚙️ 설정</button>
             </div>
         </div>
     </div>
@@ -852,7 +920,7 @@
             <button class="modal-close" onclick="closeRemainingAlertPopup()">×</button>
         </div>
         <div class="modal-body">
-            <div id="remaining-alert-body" style="font-size:0.9rem; line-height:1.55; white-space:pre-line;"></div>
+            <div id="remaining-alert-body"></div>
         </div>
         <div class="modal-footer">
             <button class="modal-btn modal-btn-primary" onclick="openRemainingListFromAlert()">모두 보기</button>
@@ -1013,7 +1081,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.34';
+            badge.textContent = 'v1.0.35';
             return;
         }
 
@@ -1066,7 +1134,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.34';
+            badge.textContent = 'v1.0.35';
         }
         fetchAppVersion();
 
@@ -1564,22 +1632,33 @@
         localStorage.setItem('card_picker_cherry_notify_schedules', JSON.stringify(notificationSchedules));
     }
 
-    function buildRemainingAlertBodyText() {
+    function buildRemainingAlertBodyHtml() {
         const top3 = getTopRemainingBenefits(3);
         if (!top3.length) {
-            return '이 달의 남은 카드 혜택을 확인해 보세요.';
+            return '<div class="alert-empty">이 달의 남은 카드 혜택을 확인해 보세요.</div>';
         }
-        return top3.map((r, i) => {
-            const remain = r.isUnlimited ? '한도없음' : `${r.remain.toLocaleString()}${r.unit}`;
-            return `${i + 1}. [${r.cardName}] ${r.benefit.name} (${remain})`;
-        }).join('\n');
+        return top3.map(r => {
+            const remain = r.isUnlimited
+                ? '한도없음'
+                : `${r.remain.toLocaleString()}${r.unit}`;
+            const name = r.isIntegrated
+                ? (r.names || []).map(n => getBenefitEmoji(n) + ' ' + n).join(' · ')
+                : `${getBenefitEmoji(r.benefit.name)} ${r.benefit.name}`;
+            return `<div class="alert-item">
+                <div class="alert-item-main">
+                    <div class="alert-item-card">${formatCardLabel(r.cardName)}</div>
+                    <div class="alert-item-name">${name}</div>
+                </div>
+                <div class="alert-item-amount">${remain}</div>
+            </div>`;
+        }).join('');
     }
 
-    function showRemainingAlertPopup(bodyText) {
+    function showRemainingAlertPopup() {
         const modal = document.getElementById('remaining-alert-modal');
         const bodyEl = document.getElementById('remaining-alert-body');
         if (!modal || !bodyEl) return;
-        bodyEl.textContent = bodyText || buildRemainingAlertBodyText();
+        bodyEl.innerHTML = buildRemainingAlertBodyHtml();
         modal.classList.add('show');
     }
 
@@ -1631,7 +1710,7 @@
         notifyLastFired[fireKey] = true;
         localStorage.setItem('card_picker_cherry_notify_fired', JSON.stringify(notifyLastFired));
 
-        showRemainingAlertPopup(buildRemainingAlertBodyText());
+        showRemainingAlertPopup();
     }
 
     /* 최근 3개월 사용 이력 필터 + 이 달 남은 혜택 수집 */
