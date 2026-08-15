@@ -782,7 +782,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.23</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.25</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingSearch()" aria-label="이 달의 남은 혜택 검색" title="이 달의 남은 혜택 검색">🔍</button>
@@ -890,6 +890,16 @@
         </div>
         <div id="search-results"></div>
     </div>
+
+    <!-- TAB 5: 이 달의 남은 혜택 (알림 진입, 잔여 많은 순) -->
+    <div id="tab-remaining" class="tab-content">
+        <div class="filter-box" style="flex-direction:column; align-items:flex-start; gap:4px;">
+            <div style="font-size:0.95rem; font-weight:700;">🍒 이 달의 남은 혜택</div>
+            <div style="font-size:0.8rem; color:var(--text-muted);" id="remaining-list-month-label"></div>
+            <div style="font-size:0.78rem; color:var(--text-muted);">잔여 한도가 많은 순으로 표시됩니다.</div>
+        </div>
+        <div id="remaining-list-results"></div>
+    </div>
 </div>
 
 <!-- 플로팅 액션 버튼 (기록 추가) -->
@@ -962,7 +972,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.23';
+            badge.textContent = 'v1.0.25';
             return;
         }
 
@@ -1015,7 +1025,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.23';
+            badge.textContent = 'v1.0.25';
         }
         fetchAppVersion();
 
@@ -1024,9 +1034,9 @@
 
         // 알림 클릭 등으로 진입
         const params = new URLSearchParams(location.search);
-        if (params.get('open') === 'remaining-search') {
+        if (params.get('open') === 'remaining-list' || params.get('open') === 'remaining-search') {
             history.replaceState({}, '', location.pathname + location.hash);
-            setTimeout(() => openRemainingSearch(true), 200);
+            setTimeout(() => openRemainingList(), 200);
         }
 
         // 저장된 알림 일정 재등록
@@ -1041,8 +1051,8 @@
     // 서비스 워커 → 알림 클릭 시 남은 혜택 화면 열기
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'OPEN_REMAINING_SEARCH') {
-                openRemainingSearch(true);
+            if (event.data && (event.data.type === 'OPEN_REMAINING_LIST' || event.data.type === 'OPEN_REMAINING_SEARCH')) {
+                openRemainingList();
             }
         });
     }
@@ -1507,6 +1517,14 @@
             }
         } catch (e) { /* ignore */ }
 
+        const top3 = getTopRemainingBenefits(3);
+        const bodyText = top3.length
+            ? top3.map((r, i) => {
+                const remain = r.isUnlimited ? '한도없음' : `${r.remain.toLocaleString()}${r.unit}`;
+                return `${i + 1}. [${r.cardName}] ${r.benefit.name} (${remain})`;
+            }).join('\n')
+            : '이 달의 남은 카드 혜택을 확인해 보세요.';
+
         const payload = {
             type: 'SCHEDULE_REMAINING_ALERTS',
             schedules: notificationSchedules.map(s => ({
@@ -1514,7 +1532,8 @@
                 day: s.day,
                 hour: s.hour,
                 minute: s.minute || 0,
-                timestamp: getNextTriggerTimestamp(s.day, s.hour, s.minute || 0)
+                timestamp: getNextTriggerTimestamp(s.day, s.hour, s.minute || 0),
+                body: bodyText
             }))
         };
 
@@ -1543,25 +1562,181 @@
             notifyLastFired[fireKey] = true;
             localStorage.setItem('card_picker_cherry_notify_fired', JSON.stringify(notifyLastFired));
 
+            const top3 = getTopRemainingBenefits(3);
+            const bodyText = top3.length
+                ? top3.map((r, i) => {
+                    const remain = r.isUnlimited ? '한도없음' : `${r.remain.toLocaleString()}${r.unit}`;
+                    return `${i + 1}. [${r.cardName}] ${r.benefit.name} (${remain})`;
+                }).join('\n')
+                : '이 달의 남은 카드 혜택을 확인해 보세요.';
+
             try {
                 const reg = await navigator.serviceWorker.ready;
                 await reg.showNotification('🍒 남은 혜택 알림', {
-                    body: '이 달의 남은 카드 혜택을 확인해 보세요.',
+                    body: bodyText,
                     tag: 'remaining-alert-' + s.id,
                     renotify: true,
-                    data: { action: 'open-remaining-search' },
+                    data: { action: 'open-remaining-list' },
                     icon: './icon-192.png',
                     badge: './icon-192.png'
                 });
             } catch (err) {
                 try {
                     new Notification('🍒 남은 혜택 알림', {
-                        body: '이 달의 남은 카드 혜택을 확인해 보세요.',
+                        body: bodyText,
                         tag: 'remaining-alert-' + s.id
                     });
                 } catch (e2) { /* ignore */ }
             }
         }
+    }
+
+    /* 최근 3개월 사용 이력 필터 + 이 달 남은 혜택 수집 */
+    function getThreeMonthsAgoDate() {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setMonth(d.getMonth() - 3);
+        return d;
+    }
+
+    function hasUsageInLastThreeMonths() {
+        const from = getThreeMonthsAgoDate();
+        return (benefitData || []).some(item => {
+            const t = new Date(item.date);
+            return !isNaN(t.getTime()) && t >= from;
+        });
+    }
+
+    function wasBenefitUsedInLastThreeMonths(cardName, benefitName) {
+        const from = getThreeMonthsAgoDate();
+        return (benefitData || []).some(item => {
+            if (item.cardName !== cardName || item.benefitName !== benefitName) return false;
+            const t = new Date(item.date);
+            return !isNaN(t.getTime()) && t >= from;
+        });
+    }
+
+    function collectRemainingBenefits(month) {
+        if (!cardBenefitsData) return [];
+        const monthPerf = performanceData[month] || {};
+        const applyUsageFilter = hasUsageInLastThreeMonths();
+        const results = [];
+
+        getCardOrder().forEach(cardName => {
+            const tiers = cardBenefitsData[cardName];
+            if (!tiers) return;
+            const tierKeys = getTierKeys(tiers);
+            const defaults = cardDefaults[cardName] || {};
+            let selectedTier = monthPerf[cardName] || defaults.defaultTier || tierKeys[0];
+            if (!tierKeys.includes(selectedTier)) selectedTier = tierKeys[0];
+
+            const selectedOptionBenefits = defaults.selectedOptionBenefits || {};
+            const benefits = getBenefitsForTier(tiers, selectedTier).filter(b => {
+                if (!b.option || !b.option.trim()) return true;
+                const chosen = selectedOptionBenefits[b.option];
+                if (!chosen) return false;
+                return b.name === chosen;
+            });
+
+            benefits.forEach(ben => {
+                if (applyUsageFilter && !wasBenefitUsedInLastThreeMonths(cardName, ben.name)) return;
+
+                let used = 0;
+                if (isIntegratedLimit(ben.limit)) {
+                    const groupNames = benefits.filter(b => b.limit === ben.limit).map(b => b.name);
+                    used = benefitData
+                        .filter(item => item.cardName === cardName &&
+                                        groupNames.includes(item.benefitName) &&
+                                        item.date.startsWith(month))
+                        .reduce((sum, item) => sum + item.amount, 0);
+                } else {
+                    used = benefitData
+                        .filter(item => item.cardName === cardName &&
+                                        item.benefitName === ben.name &&
+                                        item.date.startsWith(month))
+                        .reduce((sum, item) => sum + item.amount, 0);
+                }
+
+                const limitNum = parseLimitAmount(ben.limit);
+                const unit = getUnitLabel(ben.rate, ben.limit);
+                const isUnlimited = !limitNum;
+                const remain = isUnlimited ? null : Math.max(0, limitNum - used);
+                if (!isUnlimited && remain <= 0) return;
+
+                results.push({
+                    cardName,
+                    benefit: ben,
+                    used,
+                    remain,
+                    limitNum,
+                    unit,
+                    isUnlimited,
+                    remainScore: isUnlimited ? Number.MAX_SAFE_INTEGER : remain
+                });
+            });
+        });
+
+        results.sort((a, b) => b.remainScore - a.remainScore || a.cardName.localeCompare(b.cardName));
+        return results;
+    }
+
+    function getTopRemainingBenefits(n) {
+        return collectRemainingBenefits(getCurrentYearMonth()).slice(0, n || 3);
+    }
+
+    function openRemainingList() {
+        document.getElementById('options-dropdown')?.classList.remove('show');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-remaining').classList.add('active');
+
+        const tabMenu = document.querySelector('.tab-menu');
+        if (tabMenu) tabMenu.style.display = 'none';
+        const fab = document.getElementById('fab-add');
+        if (fab) fab.style.display = 'none';
+
+        const ym = getCurrentYearMonth();
+        const monthLabel = ym.replace(/^(\d{4})-(\d{2})$/, '$1년 $2월');
+        document.getElementById('remaining-list-month-label').textContent = `대상 월: ${monthLabel}`;
+        renderRemainingList();
+
+        if (history.state && history.state.view === 'remaining-list') {
+            history.replaceState({ view: 'remaining-list' }, '', location.href);
+        } else {
+            history.pushState({ view: 'remaining-list' }, '', location.href);
+        }
+    }
+
+    function renderRemainingList() {
+        const resultsEl = document.getElementById('remaining-list-results');
+        if (!resultsEl) return;
+
+        if (!cardBenefitsData || Object.keys(cardBenefitsData).length === 0) {
+            resultsEl.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);text-align:center;padding:20px;">카드 혜택 CSV를 먼저 가져와 주세요.</div>';
+            return;
+        }
+
+        const results = collectRemainingBenefits(getCurrentYearMonth());
+        if (!results.length) {
+            resultsEl.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);text-align:center;padding:20px;">남은 혜택이 없습니다.</div>';
+            return;
+        }
+
+        const filterNote = hasUsageInLastThreeMonths()
+            ? '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;">※ 최근 3개월간 사용한 적 있는 혜택만 표시</div>'
+            : '';
+
+        resultsEl.innerHTML = filterNote + results.map(r => {
+            const remainText = r.isUnlimited
+                ? `사용 ${r.used.toLocaleString()}${r.unit} · 한도 없음`
+                : `잔여 ${r.remain.toLocaleString()}${r.unit} / ${r.limitNum.toLocaleString()}${r.unit}`;
+            return `<div class="search-result-item">
+                <div class="sr-card">${formatCardLabel(r.cardName)}</div>
+                <div class="sr-name">${getBenefitEmoji(r.benefit.name)} ${r.benefit.name}</div>
+                <div class="sr-meta">${r.benefit.rate || '-'} · ${r.benefit.type || ''}</div>
+                <div class="sr-remain">${remainText}</div>
+            </div>`;
+        }).join('');
     }
 
     function saveCardDefaults() {
@@ -1601,7 +1776,7 @@
         // 상세/검색 화면이 아닐 때만 탭 메뉴 표시
         const tabMenu = document.querySelector('.tab-menu');
         if (tabMenu) {
-            tabMenu.style.display = (tabId === 'tab-detail' || tabId === 'tab-search') ? 'none' : 'flex';
+            tabMenu.style.display = (tabId === 'tab-detail' || tabId === 'tab-search' || tabId === 'tab-remaining') ? 'none' : 'flex';
         }
 
         // 기록 탭에서만 FAB 표시
@@ -1799,6 +1974,7 @@
     window.addEventListener('popstate', () => {
         const detailTab = document.getElementById('tab-detail');
         const searchTab = document.getElementById('tab-search');
+        const remainingTab = document.getElementById('tab-remaining');
         if (detailTab && detailTab.classList.contains('active')) {
             detailFilter = null;
             const statusBtn = document.querySelector('.tab-btn');
@@ -1806,6 +1982,11 @@
             return;
         }
         if (searchTab && searchTab.classList.contains('active')) {
+            const statusBtn = document.querySelector('.tab-btn');
+            switchTab('tab-status', statusBtn);
+            return;
+        }
+        if (remainingTab && remainingTab.classList.contains('active')) {
             const statusBtn = document.querySelector('.tab-btn');
             switchTab('tab-status', statusBtn);
         }
