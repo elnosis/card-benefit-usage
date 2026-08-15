@@ -782,7 +782,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.28</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.29</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingSearch()" aria-label="이 달의 남은 혜택 검색" title="이 달의 남은 혜택 검색">🔍</button>
@@ -972,7 +972,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.28';
+            badge.textContent = 'v1.0.29';
             return;
         }
 
@@ -1025,7 +1025,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.28';
+            badge.textContent = 'v1.0.29';
         }
         fetchAppVersion();
 
@@ -1650,10 +1650,10 @@
 
     // applyThreeMonthFilter === true 일 때만 알림 본문용 3개월 필터 적용
     // 화면(이 달의 남은 혜택)은 반드시 false 로 호출
+    // 통합 한도는 카드+한도키 단위로 1건 묶음, 무제한은 정렬 시 맨 아래
     function collectRemainingBenefits(month, applyThreeMonthFilter) {
         if (!cardBenefitsData) return [];
         const monthPerf = performanceData[month] || {};
-        // false / undefined 이면 절대 3개월 필터 사용 안 함
         const applyUsageFilter = applyThreeMonthFilter === true && hasUsageInLastThreeMonths();
         const results = [];
 
@@ -1673,26 +1673,70 @@
                 return b.name === chosen;
             });
 
-            benefits.forEach(ben => {
-                // 알림 본문 전용 필터 (화면에서는 applyThreeMonthFilter=false)
-                if (applyThreeMonthFilter === true && applyUsageFilter &&
-                    !wasBenefitUsedInLastThreeMonths(cardName, ben.name)) return;
+            const seenIntegrated = new Set();
 
-                let used = 0;
+            benefits.forEach(ben => {
+                // —— 통합 한도: 같은 카드·같은 한도 문자열은 한 줄로 ——
                 if (isIntegratedLimit(ben.limit)) {
-                    const groupNames = benefits.filter(b => b.limit === ben.limit).map(b => b.name);
-                    used = benefitData
+                    const ikey = cardName + '|' + ben.limit;
+                    if (seenIntegrated.has(ikey)) return;
+                    seenIntegrated.add(ikey);
+
+                    const group = benefits.filter(b => b.limit === ben.limit);
+                    let groupForFilter = group;
+                    if (applyThreeMonthFilter === true && applyUsageFilter) {
+                        groupForFilter = group.filter(b =>
+                            wasBenefitUsedInLastThreeMonths(cardName, b.name)
+                        );
+                        if (!groupForFilter.length) return;
+                    }
+
+                    const groupNames = group.map(b => b.name);
+                    const used = benefitData
                         .filter(item => item.cardName === cardName &&
                                         groupNames.includes(item.benefitName) &&
                                         item.date.startsWith(month))
                         .reduce((sum, item) => sum + item.amount, 0);
-                } else {
-                    used = benefitData
-                        .filter(item => item.cardName === cardName &&
-                                        item.benefitName === ben.name &&
-                                        item.date.startsWith(month))
-                        .reduce((sum, item) => sum + item.amount, 0);
+
+                    const limitNum = parseLimitAmount(ben.limit);
+                    const unit = getUnitLabel(ben.rate, ben.limit);
+                    const isUnlimited = !limitNum;
+                    const remain = isUnlimited ? null : Math.max(0, limitNum - used);
+                    if (!isUnlimited && remain <= 0) return;
+
+                    const displayNames = (applyThreeMonthFilter === true && applyUsageFilter)
+                        ? groupForFilter.map(b => b.name)
+                        : groupNames;
+
+                    results.push({
+                        cardName,
+                        isIntegrated: true,
+                        names: displayNames,
+                        benefit: {
+                            name: displayNames.join(' · '),
+                            type: '통합',
+                            rate: group.map(b => b.rate).filter(Boolean).join(' / '),
+                            limit: ben.limit
+                        },
+                        used,
+                        remain,
+                        limitNum,
+                        unit,
+                        isUnlimited,
+                        remainScore: isUnlimited ? -1 : remain
+                    });
+                    return;
                 }
+
+                // —— 일반 혜택 ——
+                if (applyThreeMonthFilter === true && applyUsageFilter &&
+                    !wasBenefitUsedInLastThreeMonths(cardName, ben.name)) return;
+
+                const used = benefitData
+                    .filter(item => item.cardName === cardName &&
+                                    item.benefitName === ben.name &&
+                                    item.date.startsWith(month))
+                    .reduce((sum, item) => sum + item.amount, 0);
 
                 const limitNum = parseLimitAmount(ben.limit);
                 const unit = getUnitLabel(ben.rate, ben.limit);
@@ -1702,18 +1746,28 @@
 
                 results.push({
                     cardName,
+                    isIntegrated: false,
+                    names: [ben.name],
                     benefit: ben,
                     used,
                     remain,
                     limitNum,
                     unit,
                     isUnlimited,
-                    remainScore: isUnlimited ? Number.MAX_SAFE_INTEGER : remain
+                    remainScore: isUnlimited ? -1 : remain
                 });
             });
         });
 
-        results.sort((a, b) => b.remainScore - a.remainScore || a.cardName.localeCompare(b.cardName));
+        // 잔여 많은 순, 무제한(한도 없음)은 맨 아래
+        results.sort((a, b) => {
+            if (a.isUnlimited && !b.isUnlimited) return 1;
+            if (!a.isUnlimited && b.isUnlimited) return -1;
+            if (!a.isUnlimited && !b.isUnlimited) {
+                return b.remainScore - a.remainScore || a.cardName.localeCompare(b.cardName);
+            }
+            return a.cardName.localeCompare(b.cardName);
+        });
         return results;
     }
 
@@ -1754,7 +1808,7 @@
             return;
         }
 
-        // 화면: 필터 없이 남은 혜택 전체
+        // 화면: 필터 없이 남은 혜택 전체 (통합 묶음, 무제한 하단)
         const results = collectRemainingBenefits(getCurrentYearMonth(), false);
         if (!results.length) {
             resultsEl.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);text-align:center;padding:20px;">남은 혜택이 없습니다.</div>';
@@ -1765,10 +1819,16 @@
             const remainText = r.isUnlimited
                 ? `사용 ${r.used.toLocaleString()}${r.unit} · 한도 없음`
                 : `잔여 ${r.remain.toLocaleString()}${r.unit} / ${r.limitNum.toLocaleString()}${r.unit}`;
+            const title = r.isIntegrated
+                ? `🔗 통합 한도 · ${(r.names || []).map(n => getBenefitEmoji(n) + ' ' + n).join(' · ')}`
+                : `${getBenefitEmoji(r.benefit.name)} ${r.benefit.name}`;
+            const meta = r.isIntegrated
+                ? `${r.benefit.rate || '-'} · 통합`
+                : `${r.benefit.rate || '-'} · ${r.benefit.type || ''}`;
             return `<div class="search-result-item">
                 <div class="sr-card">${formatCardLabel(r.cardName)}</div>
-                <div class="sr-name">${getBenefitEmoji(r.benefit.name)} ${r.benefit.name}</div>
-                <div class="sr-meta">${r.benefit.rate || '-'} · ${r.benefit.type || ''}</div>
+                <div class="sr-name">${title}</div>
+                <div class="sr-meta">${meta}</div>
                 <div class="sr-remain">${remainText}</div>
             </div>`;
         }).join('');
