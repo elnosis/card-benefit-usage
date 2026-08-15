@@ -1,5 +1,5 @@
 // 상단 버전 수정 시 메인 화면 버전 배지도 자동으로 업데이트됩니다.
-const APP_VERSION = 'v1.0.22';
+const APP_VERSION = 'v1.0.23';
 const CACHE_NAME = `card-picker-cherry-${APP_VERSION}`;
 
 // 캐싱할 주요 정적 리소스 목록
@@ -50,10 +50,10 @@ async function scheduleAlerts(schedules) {
   for (const s of schedules) {
     const tag = 'remaining-alert-' + s.id;
     const options = {
-      body: '이 달의 남은 카드 혜택을 확인해 보세요.',
+      body: s.body || '이 달의 남은 카드 혜택을 확인해 보세요.',
       tag: tag,
       renotify: true,
-      data: { action: 'open-remaining-search' },
+      data: { action: 'open-remaining-list' },
       icon: './icon-192.png',
       badge: './icon-192.png'
     };
@@ -86,17 +86,17 @@ self.addEventListener('message', (e) => {
   }
 });
 
-// 5. 알림 클릭 → 남은 혜택 검색 화면
+// 5. 알림 클릭 → 이 달의 남은 혜택 목록 화면
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = new URL('./index.html', self.location.href);
-  url.searchParams.set('open', 'remaining-search');
+  url.searchParams.set('open', 'remaining-list');
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
-          client.postMessage({ type: 'OPEN_REMAINING_SEARCH' });
+          client.postMessage({ type: 'OPEN_REMAINING_LIST' });
           return client.focus();
         }
       }
