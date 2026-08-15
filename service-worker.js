@@ -1,8 +1,7 @@
 // 상단 버전 수정 시 메인 화면 버전 배지도 자동으로 업데이트됩니다.
-const APP_VERSION = 'v1.0.23';
+const APP_VERSION = 'v1.0.24';
 const CACHE_NAME = `card-picker-cherry-${APP_VERSION}`;
 
-// 캐싱할 주요 정적 리소스 목록
 const ASSETS = [
   './',
   './index.html',
@@ -11,7 +10,6 @@ const ASSETS = [
   './icon-512.png'
 ];
 
-// 1. 설치
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
@@ -19,7 +17,6 @@ self.addEventListener('install', (e) => {
   );
 });
 
-// 2. 활성화
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) => {
@@ -34,17 +31,14 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// 3. 페치: 캐시 우선
 self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((res) => res || fetch(e.request))
   );
 });
 
-// 예약 알림 등록 (Chrome Android TimestampTrigger 지원 시)
 async function scheduleAlerts(schedules) {
   if (!schedules || !schedules.length) return;
-
   const hasTrigger = typeof TimestampTrigger !== 'undefined';
 
   for (const s of schedules) {
@@ -62,47 +56,58 @@ async function scheduleAlerts(schedules) {
       try {
         options.showTrigger = new TimestampTrigger(s.timestamp);
         await self.registration.showNotification('🍒 남은 혜택 알림', options);
-        continue;
       } catch (err) {
-        // Trigger 미지원 시 즉시 표시하지 않음
+        // Trigger 미지원 시 무시
       }
     }
   }
 }
 
-// 4. 메시지
 self.addEventListener('message', (e) => {
   if (!e.data) return;
-
   if (e.data.type === 'GET_VERSION') {
     if (e.ports && e.ports[0]) {
       e.ports[0].postMessage({ version: APP_VERSION });
     }
     return;
   }
-
   if (e.data.type === 'SCHEDULE_REMAINING_ALERTS') {
     e.waitUntil(scheduleAlerts(e.data.schedules || []));
   }
 });
 
-// 5. 알림 클릭 → 이 달의 남은 혜택 목록 화면
+// 알림 클릭 → 남은 혜택 목록 화면
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = new URL('./index.html', self.location.href);
-  url.searchParams.set('open', 'remaining-list');
 
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if ('focus' in client) {
-          client.postMessage({ type: 'OPEN_REMAINING_LIST' });
-          return client.focus();
+  const targetUrl = new URL('index.html', self.registration.scope);
+  targetUrl.searchParams.set('open', 'remaining-list');
+
+  event.waitUntil((async () => {
+    const clientList = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    });
+
+    for (const client of clientList) {
+      try {
+        // 이미 열린 탭이 있으면 해당 URL로 이동 + 포커스 + 메시지
+        if ('navigate' in client) {
+          await client.navigate(targetUrl.href);
         }
+        if ('focus' in client) {
+          await client.focus();
+        }
+        client.postMessage({ type: 'OPEN_REMAINING_LIST' });
+        return;
+      } catch (err) {
+        // 다음 클라이언트 시도
       }
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(url.href);
-      }
-    })
-  );
+    }
+
+    // 열린 창이 없으면 새로 열기
+    if (self.clients.openWindow) {
+      await self.clients.openWindow(targetUrl.href);
+    }
+  })());
 });
