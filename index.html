@@ -648,18 +648,25 @@
 
         .benefit-item.disabled {
             background-color: var(--disabled-bg);
-            opacity: 0.65;
-            filter: grayscale(0.4);
         }
 
         .benefit-item.disabled .benefit-name,
         .benefit-item.disabled .benefit-meta,
-        .benefit-item.disabled .benefit-limit-row {
+        .benefit-item.disabled .benefit-limit-row > span:not(.benefit-remaining) {
             color: var(--disabled-text);
+            opacity: 0.75;
         }
 
         .benefit-item.disabled .progress-bar-fill {
             background-color: var(--disabled-text);
+            opacity: 0.7;
+        }
+
+        .benefit-remaining.done {
+            color: var(--primary-color);
+            font-weight: 700;
+            opacity: 1 !important;
+            filter: none !important;
         }
 
         .benefit-item-header {
@@ -874,7 +881,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>카드 피커 체리 <span class="version-badge" id="app-version">v1.0.35</span></h1>
+    <h1>카드 피커 체리 <span class="version-badge" id="app-version">v1.0.36</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList()" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🍒</button>
@@ -1081,7 +1088,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.35';
+            badge.textContent = 'v1.0.36';
             return;
         }
 
@@ -1134,7 +1141,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.35';
+            badge.textContent = 'v1.0.36';
         }
         fetchAppVersion();
 
@@ -2596,7 +2603,7 @@
                     } else {
                         html += `<div class="benefit-limit-row">
                             <span>사용: <strong>${used.toLocaleString()}${unit}</strong> / ${limitNum.toLocaleString()}${unit}</span>
-                            <span class="benefit-remaining">${isExhausted ? '한도 소진' : '잔여: ' + remain.toLocaleString() + unit}</span>
+                            <span class="benefit-remaining${isExhausted ? ' done' : ''}">${isExhausted ? '사용 완료 ✓' : '잔여: ' + remain.toLocaleString() + unit}</span>
                         </div>
                         <div class="progress-bar-bg">
                             <div class="progress-bar-fill" style="width:${percent}%"></div>
@@ -2657,7 +2664,7 @@
                         html += `
                             <div class="benefit-limit-row">
                                 <span>사용: <strong>${used.toLocaleString()}${unit}</strong> / ${limitNum.toLocaleString()}${unit}</span>
-                                <span class="benefit-remaining">${isExhausted ? '한도 소진' : '잔여: ' + remain.toLocaleString() + unit}</span>
+                                <span class="benefit-remaining${isExhausted ? ' done' : ''}">${isExhausted ? '사용 완료 ✓' : '잔여: ' + remain.toLocaleString() + unit}</span>
                             </div>
                             <div class="progress-bar-bg">
                                 <div class="progress-bar-fill" style="width:${percent}%"></div>
