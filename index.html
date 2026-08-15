@@ -124,6 +124,30 @@
             color: var(--text-color);
         }
 
+        /* 하단 알림 팝업 */
+        #remaining-alert-modal {
+            align-items: flex-end;
+            padding: 0;
+            justify-content: center;
+        }
+
+        #remaining-alert-modal .modal-content {
+            max-width: 480px;
+            width: 100%;
+            margin: 0;
+            border-radius: 16px 16px 0 0;
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
+        }
+
+        #remaining-alert-modal .modal-footer {
+            justify-content: stretch;
+            padding: 12px 16px 20px;
+        }
+
+        #remaining-alert-modal .modal-footer .modal-btn {
+            width: 100%;
+        }
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -782,7 +806,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>카드 피커 체리 <span class="version-badge" id="app-version">v1.0.33</span></h1>
+    <h1>카드 피커 체리 <span class="version-badge" id="app-version">v1.0.34</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList()" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🍒</button>
@@ -820,9 +844,9 @@
     </div>
 </div>
 
-<!-- 이 달의 남은 혜택 인앱 알림 팝업 -->
+<!-- 이 달의 남은 혜택 인앱 알림 팝업 (하단) -->
 <div class="modal-overlay" id="remaining-alert-modal">
-    <div class="modal-content" style="max-width:360px;">
+    <div class="modal-content">
         <div class="modal-header">
             <h2>🍒 남은 혜택 알림</h2>
             <button class="modal-close" onclick="closeRemainingAlertPopup()">×</button>
@@ -830,8 +854,8 @@
         <div class="modal-body">
             <div id="remaining-alert-body" style="font-size:0.9rem; line-height:1.55; white-space:pre-line;"></div>
         </div>
-        <div class="modal-footer" style="justify-content:flex-end;">
-            <button class="modal-btn modal-btn-primary" onclick="closeRemainingAlertPopup()">닫기</button>
+        <div class="modal-footer">
+            <button class="modal-btn modal-btn-primary" onclick="openRemainingListFromAlert()">모두 보기</button>
         </div>
     </div>
 </div>
@@ -989,7 +1013,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.33';
+            badge.textContent = 'v1.0.34';
             return;
         }
 
@@ -1042,7 +1066,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.33';
+            badge.textContent = 'v1.0.34';
         }
         fetchAppVersion();
 
@@ -1562,6 +1586,11 @@
     function closeRemainingAlertPopup() {
         const modal = document.getElementById('remaining-alert-modal');
         if (modal) modal.classList.remove('show');
+    }
+
+    function openRemainingListFromAlert() {
+        closeRemainingAlertPopup();
+        openRemainingList();
     }
 
     /* 홈 화면 진입 시: 설정한 일정이 지났으면 월 1회 팝업 */
