@@ -782,7 +782,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.20</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.23</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingSearch()" aria-label="이 달의 남은 혜택 검색" title="이 달의 남은 혜택 검색">🔍</button>
@@ -790,7 +790,7 @@
             <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
             <div class="options-dropdown" id="options-dropdown">
                 <button onclick="triggerCardBenefitsImport()">📥 카드 혜택 가져오기</button>
-                <button onclick="openCardDefaultsModal()">⚙️ 카드 기본 설정</button>
+                <button onclick="openCardDefaultsModal()">⚙️ 설정</button>
                 <button onclick="exportData()">📤 사용 기록 내보내기</button>
                 <button onclick="triggerImport()">📥 사용 기록 가져오기</button>
             </div>
@@ -802,11 +802,11 @@
 <input type="file" id="import-file-input" accept=".json" style="display: none;" onchange="importData(event)">
 <input type="file" id="csv-import-input" accept=".csv" style="display: none;" onchange="importCardBenefitsCSV(event)">
 
-<!-- 카드 기본 설정 모달 -->
+<!-- 설정 모달 -->
 <div class="modal-overlay" id="card-defaults-modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2>⚙️ 카드 기본 설정</h2>
+            <h2>⚙️ 설정</h2>
             <button class="modal-close" onclick="closeCardDefaultsModal()">×</button>
         </div>
         <div class="modal-body" id="card-defaults-body">
@@ -962,7 +962,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.20';
+            badge.textContent = 'v1.0.23';
             return;
         }
 
@@ -1015,13 +1015,37 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.20';
+            badge.textContent = 'v1.0.23';
         }
         fetchAppVersion();
 
         renderAll();
         populateFormCards();
+
+        // 알림 클릭 등으로 진입
+        const params = new URLSearchParams(location.search);
+        if (params.get('open') === 'remaining-search') {
+            history.replaceState({}, '', location.pathname + location.hash);
+            setTimeout(() => openRemainingSearch(true), 200);
+        }
+
+        // 저장된 알림 일정 재등록
+        if (notificationSchedules.length && Notification.permission === 'granted') {
+            scheduleRemainingNotifications();
+        }
+        // 로컬 폴링 (분 단위) — Trigger 미지원 환경 보완
+        checkDueNotificationsLocally();
+        setInterval(checkDueNotificationsLocally, 30000);
     });
+
+    // 서비스 워커 → 알림 클릭 시 남은 혜택 화면 열기
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'OPEN_REMAINING_SEARCH') {
+                openRemainingSearch(true);
+            }
+        });
+    }
 
     // 외부 클릭 시 옵션 드롭다운 닫기
     document.addEventListener("click", () => {
@@ -1238,12 +1262,17 @@
         }
     }
 
-    /* --- 카드 기본 설정 모달 --- */
+    /* --- 설정 모달 --- */
+    let notificationSchedules = JSON.parse(localStorage.getItem('card_picker_cherry_notify_schedules')) || [];
+    // [{ id, day: 1-31, hour: 0-23, minute: 0-59 }]
+    // 구버전 호환: minute 없으면 0
+    notificationSchedules = notificationSchedules.map(s => ({
+        ...s,
+        minute: (s.minute != null && !isNaN(s.minute)) ? Number(s.minute) : 0
+    }));
+    let notifyLastFired = JSON.parse(localStorage.getItem('card_picker_cherry_notify_fired')) || {};
+
     function openCardDefaultsModal() {
-        if (!cardBenefitsData || Object.keys(cardBenefitsData).length === 0) {
-            alert('먼저 「카드 혜택 가져오기」로 CSV를 불러와 주세요.');
-            return;
-        }
         renderCardDefaultsForm();
         document.getElementById('card-defaults-modal').classList.add('show');
         document.getElementById('options-dropdown').classList.remove('show');
@@ -1253,9 +1282,118 @@
         document.getElementById('card-defaults-modal').classList.remove('show');
     }
 
+    function formatNotifyTime(hour, minute) {
+        return `${String(hour).padStart(2, '0')}:${String(minute || 0).padStart(2, '0')}`;
+    }
+
+    function renderNotifySchedulesUI() {
+        const list = document.getElementById('notify-schedule-list');
+        if (!list) return;
+        if (!notificationSchedules.length) {
+            list.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);padding:6px 0;">등록된 알림 일정이 없습니다.</div>';
+            return;
+        }
+        list.innerHTML = notificationSchedules
+            .slice()
+            .sort((a, b) => a.day - b.day || a.hour - b.hour || (a.minute || 0) - (b.minute || 0))
+            .map(s => `
+                <div class="default-row" style="margin-bottom:6px;" data-notify-id="${s.id}">
+                    <span style="font-size:0.85rem;">매월 <strong>${s.day}일</strong> <strong>${formatNotifyTime(s.hour, s.minute)}</strong></span>
+                    <button type="button" class="delete-btn" onclick="removeNotifySchedule('${s.id}')">삭제</button>
+                </div>
+            `).join('');
+    }
+
+    function addNotifySchedule() {
+        const dayEl = document.getElementById('notify-day');
+        const hourEl = document.getElementById('notify-hour');
+        const minuteEl = document.getElementById('notify-minute');
+        const day = parseInt(dayEl.value, 10);
+        const hour = parseInt(hourEl.value, 10);
+        const minute = parseInt(minuteEl ? minuteEl.value : '0', 10);
+        if (!day || day < 1 || day > 31) {
+            alert('일자는 1~31 사이로 입력해 주세요.');
+            return;
+        }
+        if (isNaN(hour) || hour < 0 || hour > 23) {
+            alert('시는 0~23 사이로 입력해 주세요.');
+            return;
+        }
+        if (isNaN(minute) || minute < 0 || minute > 59) {
+            alert('분은 0~59 사이로 입력해 주세요.');
+            return;
+        }
+        const exists = notificationSchedules.some(s =>
+            s.day === day && s.hour === hour && (s.minute || 0) === minute
+        );
+        if (exists) {
+            alert('이미 같은 일정이 있습니다.');
+            return;
+        }
+        notificationSchedules.push({
+            id: 'n' + Date.now(),
+            day,
+            hour,
+            minute
+        });
+        renderNotifySchedulesUI();
+    }
+
+    function removeNotifySchedule(id) {
+        notificationSchedules = notificationSchedules.filter(s => s.id !== id);
+        renderNotifySchedulesUI();
+    }
+
     function renderCardDefaultsForm() {
         const body = document.getElementById('card-defaults-body');
         body.innerHTML = '';
+
+        // 알림 설정 섹션
+        let notifyHtml = `
+            <div class="default-card-block">
+                <div class="default-card-name">🔔 이 달의 남은 혜택 알림</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;line-height:1.45;">
+                    매월 지정한 일자·시각에 알림을 보냅니다. 알림을 누르면 남은 혜택 화면으로 이동합니다.<br>
+                    (Android에 홈 화면 추가된 PWA + 알림 권한 필요. 백그라운드 예약은 Chrome 등 지원 브라우저에서 동작합니다.)
+                </div>
+                <div id="notify-schedule-list"></div>
+                <div class="default-row" style="margin-top:10px; flex-wrap:wrap; gap:8px; align-items:center;">
+                    <label style="font-size:0.8rem;">매월</label>
+                    <select id="notify-day" class="form-control" style="width:auto;max-width:90px;">
+                        ${Array.from({length:31}, (_, i) => `<option value="${i+1}">${i+1}일</option>`).join('')}
+                    </select>
+                    <select id="notify-hour" class="form-control" style="width:auto;max-width:90px;">
+                        ${Array.from({length:24}, (_, i) => `<option value="${i}" ${i===18?'selected':''}>${String(i).padStart(2,'0')}시</option>`).join('')}
+                    </select>
+                    <select id="notify-minute" class="form-control" style="width:auto;max-width:90px;">
+                        ${Array.from({length:60}, (_, i) => `<option value="${i}">${String(i).padStart(2,'0')}분</option>`).join('')}
+                    </select>
+                    <button type="button" class="modal-btn modal-btn-secondary" style="padding:6px 12px;" onclick="addNotifySchedule()">일정 추가</button>
+                </div>
+                <div style="margin-top:10px;">
+                    <button type="button" class="modal-btn modal-btn-secondary" style="padding:6px 12px;" onclick="requestNotifyPermission()">알림 권한 요청</button>
+                    <span id="notify-permission-status" style="font-size:0.75rem;color:var(--text-muted);margin-left:8px;"></span>
+                </div>
+            </div>
+        `;
+        body.insertAdjacentHTML('beforeend', notifyHtml);
+        renderNotifySchedulesUI();
+        updateNotifyPermissionStatus();
+
+        // 카드 기본 설정 섹션
+        if (!cardBenefitsData || Object.keys(cardBenefitsData).length === 0) {
+            body.insertAdjacentHTML('beforeend', `
+                <div class="default-card-block">
+                    <div class="default-card-name">💳 카드 기본 설정</div>
+                    <div style="font-size:0.85rem;color:var(--text-muted);">카드 혜택 CSV를 먼저 가져와 주세요.</div>
+                </div>
+            `);
+            return;
+        }
+
+        body.insertAdjacentHTML('beforeend', `
+            <div style="font-size:0.85rem;font-weight:700;margin:8px 0 6px;color:var(--text-muted);">💳 카드별 기본 설정</div>
+        `);
 
         const cardOrder = getCardOrder();
         cardOrder.forEach(cardName => {
@@ -1265,11 +1403,9 @@
             const tierKeys = getTierKeys(tiers);
             const defaults = cardDefaults[cardName] || {};
             const currentTier = defaults.defaultTier || tierKeys[0];
-            // selectedOptionBenefits: { "1": "혜택명", "2": "혜택명" }
             const selectedOptionBenefits = defaults.selectedOptionBenefits || {};
 
-            // 옵션 그룹별 혜택명 목록
-            const optionMap = {}; // optionValue -> Set of benefit names
+            const optionMap = {};
             Object.values(tiers).forEach(benefits => {
                 benefits.forEach(b => {
                     if (b.option && b.option.trim()) {
@@ -1313,8 +1449,123 @@
         });
     }
 
+    function updateNotifyPermissionStatus() {
+        const el = document.getElementById('notify-permission-status');
+        if (!el) return;
+        if (!('Notification' in window)) {
+            el.textContent = '이 브라우저는 알림을 지원하지 않습니다.';
+            return;
+        }
+        const map = { granted: '허용됨', denied: '거부됨', default: '미설정' };
+        el.textContent = '권한: ' + (map[Notification.permission] || Notification.permission);
+    }
+
+    async function requestNotifyPermission() {
+        if (!('Notification' in window)) {
+            alert('이 브라우저는 알림을 지원하지 않습니다.');
+            return;
+        }
+        const result = await Notification.requestPermission();
+        updateNotifyPermissionStatus();
+        if (result !== 'granted') {
+            alert('알림 권한이 허용되지 않았습니다. 브라우저/앱 설정에서 허용해 주세요.');
+        }
+    }
+
+    function getNextTriggerTimestamp(day, hour, minute) {
+        const now = new Date();
+        let y = now.getFullYear();
+        let m = now.getMonth();
+        const min = minute || 0;
+        // 이번 달 해당 일자·시·분
+        let target = new Date(y, m, Math.min(day, daysInMonth(y, m)), hour, min, 0, 0);
+        if (target.getTime() <= now.getTime()) {
+            // 다음 달
+            m += 1;
+            if (m > 11) { m = 0; y += 1; }
+            target = new Date(y, m, Math.min(day, daysInMonth(y, m)), hour, min, 0, 0);
+        }
+        return target.getTime();
+    }
+
+    function daysInMonth(year, monthIndex) {
+        return new Date(year, monthIndex + 1, 0).getDate();
+    }
+
+    async function scheduleRemainingNotifications() {
+        localStorage.setItem('card_picker_cherry_notify_schedules', JSON.stringify(notificationSchedules));
+
+        if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
+        if (Notification.permission !== 'granted') return;
+
+        const reg = await navigator.serviceWorker.ready;
+        // 기존 같은 태그 알림 정리 시도
+        try {
+            const existing = await reg.getNotifications({ includeTriggered: true });
+            for (const n of existing) {
+                if (n.tag && n.tag.startsWith('remaining-alert-')) n.close();
+            }
+        } catch (e) { /* ignore */ }
+
+        const payload = {
+            type: 'SCHEDULE_REMAINING_ALERTS',
+            schedules: notificationSchedules.map(s => ({
+                id: s.id,
+                day: s.day,
+                hour: s.hour,
+                minute: s.minute || 0,
+                timestamp: getNextTriggerTimestamp(s.day, s.hour, s.minute || 0)
+            }))
+        };
+
+        if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage(payload);
+        } else if (reg.active) {
+            reg.active.postMessage(payload);
+        }
+    }
+
+    /* TimestampTrigger 미지원 시: 앱이 열려 있을 때 분 단위로 확인 후 알림 */
+    async function checkDueNotificationsLocally() {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        if (!notificationSchedules.length) return;
+
+        const now = new Date();
+        const day = now.getDate();
+        const hour = now.getHours();
+        const minute = now.getMinutes();
+        const dayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        for (const s of notificationSchedules) {
+            if (s.day !== day || s.hour !== hour || (s.minute || 0) !== minute) continue;
+            const fireKey = `${s.id}@${dayKey}`;
+            if (notifyLastFired[fireKey]) continue;
+            notifyLastFired[fireKey] = true;
+            localStorage.setItem('card_picker_cherry_notify_fired', JSON.stringify(notifyLastFired));
+
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                await reg.showNotification('🍒 남은 혜택 알림', {
+                    body: '이 달의 남은 카드 혜택을 확인해 보세요.',
+                    tag: 'remaining-alert-' + s.id,
+                    renotify: true,
+                    data: { action: 'open-remaining-search' },
+                    icon: './icon-192.png',
+                    badge: './icon-192.png'
+                });
+            } catch (err) {
+                try {
+                    new Notification('🍒 남은 혜택 알림', {
+                        body: '이 달의 남은 카드 혜택을 확인해 보세요.',
+                        tag: 'remaining-alert-' + s.id
+                    });
+                } catch (e2) { /* ignore */ }
+            }
+        }
+    }
+
     function saveCardDefaults() {
-        const blocks = document.querySelectorAll('#card-defaults-body .default-card-block');
+        const blocks = document.querySelectorAll('#card-defaults-body .default-card-block[data-card]');
         blocks.forEach(block => {
             const cardName = block.getAttribute('data-card');
             const tierSelect = block.querySelector('.default-tier-select');
@@ -1331,12 +1582,13 @@
             };
         });
         saveData();
+        scheduleRemainingNotifications();
         closeCardDefaultsModal();
         const selectedMonth = document.getElementById('month-spinner').value;
-        if (selectedMonth !== 'ALL') {
+        if (selectedMonth !== 'ALL' && cardBenefitsData) {
             renderMonthStatus(selectedMonth);
         }
-        alert('카드 기본 설정을 저장했습니다.');
+        alert('설정을 저장했습니다.');
     }
 
     function switchTab(tabId, btn) {
@@ -1415,7 +1667,7 @@
         return 0;
     }
 
-    function openRemainingSearch() {
+    function openRemainingSearch(showAll) {
         document.getElementById('options-dropdown')?.classList.remove('show');
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1430,10 +1682,14 @@
         const monthLabel = ym.replace(/^(\d{4})-(\d{2})$/, '$1년 $2월');
         document.getElementById('search-month-label').textContent = `대상 월: ${monthLabel}`;
         document.getElementById('remaining-search-input').value = '';
-        document.getElementById('search-results').innerHTML =
-            '<div style="font-size:0.85rem;color:var(--text-muted);text-align:center;padding:20px;">키워드를 입력한 뒤 검색해 주세요.</div>';
 
-        setTimeout(() => document.getElementById('remaining-search-input')?.focus(), 100);
+        if (showAll) {
+            runRemainingSearch(true);
+        } else {
+            document.getElementById('search-results').innerHTML =
+                '<div style="font-size:0.85rem;color:var(--text-muted);text-align:center;padding:20px;">키워드를 입력한 뒤 검색해 주세요.</div>';
+            setTimeout(() => document.getElementById('remaining-search-input')?.focus(), 100);
+        }
 
         if (history.state && history.state.view === 'remaining-search') {
             history.replaceState({ view: 'remaining-search' }, '', location.href);
@@ -1442,12 +1698,12 @@
         }
     }
 
-    function runRemainingSearch() {
+    function runRemainingSearch(showAll) {
         const keyword = (document.getElementById('remaining-search-input').value || '').trim();
         const resultsEl = document.getElementById('search-results');
         const month = getCurrentYearMonth();
 
-        if (!keyword) {
+        if (!showAll && !keyword) {
             resultsEl.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);text-align:center;padding:20px;">검색어를 입력해 주세요.</div>';
             return;
         }
@@ -1478,7 +1734,7 @@
 
             benefits.forEach(ben => {
                 const hay = `${ben.name} ${cardName} ${ben.rate || ''} ${ben.type || ''}`.toLowerCase();
-                if (!hay.includes(kw)) return;
+                if (kw && !hay.includes(kw)) return;
 
                 // 통합 한도는 동일 limit 키 혜택들의 사용합
                 let used = 0;
