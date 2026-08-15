@@ -782,9 +782,10 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.29</span></h1>
+    <h1>카드 피커 체리 <span class="version-badge" id="app-version">v1.0.31</span></h1>
     
     <div class="header-actions">
+        <button class="options-btn" onclick="openRemainingList()" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🍒</button>
         <button class="options-btn" onclick="openRemainingSearch()" aria-label="이 달의 남은 혜택 검색" title="이 달의 남은 혜택 검색">🔍</button>
         <div class="options-container">
             <button class="options-btn" onclick="toggleOptionsMenu(event)" aria-label="옵션 메뉴">⋮</button>
@@ -972,7 +973,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.29';
+            badge.textContent = 'v1.0.31';
             return;
         }
 
@@ -1025,7 +1026,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.29';
+            badge.textContent = 'v1.0.31';
         }
         fetchAppVersion();
 
