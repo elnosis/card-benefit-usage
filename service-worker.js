@@ -1,5 +1,5 @@
 // 상단 버전 수정 시 메인 화면 버전 배지도 자동으로 업데이트됩니다.
-const APP_VERSION = 'v1.0.25';
+const APP_VERSION = 'v1.0.28';
 const CACHE_NAME = `card-picker-cherry-${APP_VERSION}`;
 
 const ASSETS = [
@@ -31,9 +31,28 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// HTML/문서: 네트워크 우선 (업데이트 반영), 그 외: 캐시 우선
 self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  const url = new URL(req.url);
+  const isHTML = req.mode === 'navigate' ||
+    (req.headers.get('accept') || '').includes('text/html') ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('/');
+
+  if (isHTML) {
+    e.respondWith(
+      fetch(req).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        return res;
+      }).catch(() => caches.match(req).then((res) => res || caches.match('./index.html')))
+    );
+    return;
+  }
+
   e.respondWith(
-    caches.match(e.request).then((res) => res || fetch(e.request))
+    caches.match(req).then((res) => res || fetch(req))
   );
 });
 
@@ -56,9 +75,7 @@ async function scheduleAlerts(schedules) {
       try {
         options.showTrigger = new TimestampTrigger(s.timestamp);
         await self.registration.showNotification('🍒 남은 혜택 알림', options);
-      } catch (err) {
-        // Trigger 미지원 시 무시
-      }
+      } catch (err) { /* ignore */ }
     }
   }
 }
@@ -76,10 +93,8 @@ self.addEventListener('message', (e) => {
   }
 });
 
-// 알림 클릭 → 남은 혜택 목록 화면
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
   const targetUrl = new URL('index.html', self.registration.scope);
   targetUrl.searchParams.set('open', 'remaining-list');
 
@@ -88,24 +103,14 @@ self.addEventListener('notificationclick', (event) => {
       type: 'window',
       includeUncontrolled: true
     });
-
     for (const client of clientList) {
       try {
-        // 이미 열린 탭이 있으면 해당 URL로 이동 + 포커스 + 메시지
-        if ('navigate' in client) {
-          await client.navigate(targetUrl.href);
-        }
-        if ('focus' in client) {
-          await client.focus();
-        }
+        if ('navigate' in client) await client.navigate(targetUrl.href);
+        if ('focus' in client) await client.focus();
         client.postMessage({ type: 'OPEN_REMAINING_LIST' });
         return;
-      } catch (err) {
-        // 다음 클라이언트 시도
-      }
+      } catch (err) { /* next */ }
     }
-
-    // 열린 창이 없으면 새로 열기
     if (self.clients.openWindow) {
       await self.clients.openWindow(targetUrl.href);
     }
