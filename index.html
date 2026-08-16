@@ -881,7 +881,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.38</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.41</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1039,7 +1039,7 @@
                     <label>날짜</label>
                     <input type="date" class="form-control" id="form-date" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="form-payment-group">
                     <label>결제 금액 (원)</label>
                     <input type="number" class="form-control" id="form-payment" placeholder="예: 15000" min="0" oninput="onBenefitOrPaymentChange()">
                 </div>
@@ -1079,7 +1079,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.38';
+            badge.textContent = 'v1.0.41';
             return;
         }
 
@@ -1132,7 +1132,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.38';
+            badge.textContent = 'v1.0.41';
         }
         fetchAppVersion();
 
@@ -1239,24 +1239,34 @@
         // BOM 제거 + 헤더 매핑
         const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/^\uFEFF/, ''));
         const idx = (name) => headers.indexOf(name);
-        let iIssuer = idx('카드사');
+        // 발급처(구 카드사), 한도(구 월간한도) 모두 인식
+        let iIssuer = idx('발급처');
+        if (iIssuer < 0) iIssuer = idx('카드사');
         let iCard = idx('카드명');
         let iTier = idx('실적');
         let iName = idx('혜택명');
         let iType = idx('할인유형');
         let iRate = idx('할인율또는금액');
-        let iLimit = idx('월간한도');
+        let iLimit = idx('한도');
+        if (iLimit < 0) iLimit = idx('월간한도');
         let iOpt = idx('옵션');
+        let iProvider = idx('제공');
+        let iPeriod = idx('기간');
+        let iPerfMonths = idx('실적산정기간');
 
         // 헤더를 못 찾은 경우: 열 개수로 포맷 추정
-        // 신버전(카드사 포함) 8열 / 구버전 7열
         if (iCard < 0) {
             const sample = parseCSVLine(lines[1] || '');
-            if (headers[0] === '카드사' || sample.length >= 8) {
-                iIssuer = 0; iCard = 1; iTier = 2; iName = 3;
-                iType = 4; iRate = 5; iLimit = 6; iOpt = 7;
+            if (headers[0] === '카드사' || headers[0] === '발급처' || sample.length >= 8) {
+                // 구: 카드사,카드명,... 또는 신: 카드명,...발급처
+                if (headers[0] === '카드사' || headers[0] === '발급처') {
+                    iIssuer = 0; iCard = 1; iTier = 2; iName = 3;
+                    iType = 4; iRate = 5; iLimit = 6; iOpt = 7;
+                } else {
+                    iCard = 0; iTier = 1; iName = 2; iType = 3;
+                    iRate = 4; iLimit = 5; iOpt = 6; iIssuer = 7;
+                }
             } else {
-                // 구버전: 카드명,실적,혜택명,할인유형,할인율또는금액,월간한도,옵션
                 iIssuer = -1; iCard = 0; iTier = 1; iName = 2;
                 iType = 3; iRate = 4; iLimit = 5; iOpt = 6;
             }
@@ -1277,8 +1287,12 @@
             const rate = (cols[iRate] || '').trim();
             const limit = (cols[iLimit] || '').trim();
             const option = iOpt >= 0 ? (cols[iOpt] || '').trim() : '';
+            const provider = iProvider >= 0 ? (cols[iProvider] || '').trim() : '';
+            const period = iPeriod >= 0 ? (cols[iPeriod] || '').trim() : '';
+            const perfMonthsRaw = iPerfMonths >= 0 ? (cols[iPerfMonths] || '').trim() : '';
+            const perfMonths = perfMonthsRaw ? (parseInt(perfMonthsRaw, 10) || 0) : 0;
 
-            // 카드명 자리에 카드사만 들어온 잘못된 매핑 방지
+            // 카드명 자리에 발급처만 들어온 잘못된 매핑 방지
             if (!cardName || !tier || !benefitName) continue;
             if (cardName === issuer) continue;
 
@@ -1291,7 +1305,10 @@
                 type: type,
                 rate: rate,
                 limit: limit,
-                option: option
+                option: option,
+                provider: provider,
+                period: period,
+                perfMonths: perfMonths
             });
         }
 
@@ -1550,17 +1567,26 @@
 
             const hasOptions = Object.keys(optionMap).length > 0;
 
+            const providerType = getCardProviderType(cardName);
+            const isCompanyOrMembership = providerType === '카드사' || providerType === '멤버십사';
+
             let html = `
                 <div class="default-card-block" data-card="${cardName}">
                     <div class="default-card-name">${formatCardLabel(cardName)}</div>
-                    <div class="default-row">
-                        <label>기본 실적</label>
-                        <select class="default-tier-select" data-card="${cardName}">
             `;
-            tierKeys.forEach(t => {
-                html += `<option value="${t}" ${t === currentTier ? 'selected' : ''}>${formatTierLabel(t)}</option>`;
-            });
-            html += `</select></div>`;
+            if (isCompanyOrMembership) {
+                html += `<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:8px;">
+                    제공: ${providerType} · 실적 수정 불가 · 연결 카드의 직전 N개월 평균 실적 적용
+                </div>`;
+            } else {
+                html += `<div class="default-row">
+                    <label>기본 실적</label>
+                    <select class="default-tier-select" data-card="${cardName}">`;
+                tierKeys.forEach(t => {
+                    html += `<option value="${t}" ${t === currentTier ? 'selected' : ''}>${formatTierLabel(t)}</option>`;
+                });
+                html += `</select></div>`;
+            }
 
             if (hasOptions) {
                 Object.keys(optionMap).sort().forEach(opt => {
@@ -1575,6 +1601,21 @@
                     });
                     html += `</select></div>`;
                 });
+            }
+
+            // 제공=카드 인 경우 카드사 혜택 상품 연결
+            if (getCardProviderType(cardName) === '카드') {
+                const companyProducts = getProductNamesByProvider('카드사');
+                const linked = defaults.linkedCompanyProduct || '';
+                html += `<div class="default-row" style="margin-top:8px;">
+                    <label>카드사 혜택</label>
+                    <select class="form-control company-link-select" data-card="${cardName}">
+                        <option value="">선택 안 함</option>`;
+                companyProducts.forEach(cn => {
+                    html += `<option value="${cn}" ${cn === linked ? 'selected' : ''}>${cn}</option>`;
+                });
+                html += `</select></div>
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">연결 시 해당 카드 실적으로 카드사 혜택을 함께 표시합니다.</div>`;
             }
 
             html += `</div>`;
@@ -1752,12 +1793,29 @@
             if (!tierKeys.includes(selectedTier)) selectedTier = tierKeys[0];
 
             const selectedOptionBenefits = defaults.selectedOptionBenefits || {};
-            const benefits = getBenefitsForTier(tiers, selectedTier).filter(b => {
+            let benefits = getBenefitsForTier(tiers, selectedTier).filter(b => {
                 if (!b.option || !b.option.trim()) return true;
                 const chosen = selectedOptionBenefits[b.option];
                 if (!chosen) return false;
                 return b.name === chosen;
             });
+            const linkedProduct = defaults.linkedCompanyProduct || '';
+            const providerTypeRem = getCardProviderType(cardName);
+            if (providerTypeRem !== '카드사' && providerTypeRem !== '멤버십사' && linkedProduct && cardBenefitsData[linkedProduct]) {
+                const companyTiers = cardBenefitsData[linkedProduct];
+                const seenC = new Set();
+                Object.keys(companyTiers).forEach(tk => {
+                    (companyTiers[tk] || []).forEach(b => {
+                        const key = b.name + '|' + (b.limit || '');
+                        if (seenC.has(key)) return;
+                        seenC.add(key);
+                        const need = parseTierAmount(tk);
+                        const n = b.perfMonths > 0 ? b.perfMonths : 1;
+                        const avg = getAveragePerformanceAmount(cardName, month, n);
+                        if (need <= avg) benefits.push(b);
+                    });
+                });
+            }
 
             const seenIntegrated = new Set();
 
@@ -1971,9 +2029,11 @@
                 if (sel.value) selectedOptionBenefits[opt] = sel.value;
             });
 
+            const companySel = block.querySelector('.company-link-select');
             cardDefaults[cardName] = {
                 defaultTier: tierSelect ? tierSelect.value : '',
-                selectedOptionBenefits: selectedOptionBenefits
+                selectedOptionBenefits: selectedOptionBenefits,
+                linkedCompanyProduct: companySel ? (companySel.value || '') : (cardDefaults[cardName] && cardDefaults[cardName].linkedCompanyProduct) || ''
             };
         });
         saveData();
@@ -2287,6 +2347,99 @@
         return tiers[tier] || [];
     }
 
+    /* 제공 구분: 카드 / 카드사 / 멤버십사 (혜택 객체 또는 카드 전체) */
+    function getCardProviderType(cardName) {
+        const tiers = cardBenefitsData && cardBenefitsData[cardName];
+        if (!tiers) return '';
+        for (const list of Object.values(tiers)) {
+            for (const b of list) {
+                if (b.provider) return b.provider;
+            }
+        }
+        return '카드';
+    }
+
+    function getProductNamesByProvider(provider) {
+        if (!cardBenefitsData) return [];
+        return Object.keys(cardBenefitsData).filter(n => getCardProviderType(n) === provider);
+    }
+
+    function getLinkedCompanyProduct(cardName) {
+        const d = cardDefaults[cardName] || {};
+        return d.linkedCompanyProduct || '';
+    }
+
+    function parseTierAmount(tier) {
+        if (tier == null || tier === '') return 0;
+        const n = parseInt(String(tier).replace(/[^0-9]/g, ''), 10);
+        return isNaN(n) ? 0 : n;
+    }
+
+    function getPreviousMonthKeys(ym, n) {
+        if (!ym || !n || n <= 0) return [];
+        const parts = String(ym).split('-');
+        let y = parseInt(parts[0], 10);
+        let m = parseInt(parts[1], 10);
+        const keys = [];
+        for (let i = 0; i < n; i++) {
+            m -= 1;
+            if (m < 1) { m = 12; y -= 1; }
+            keys.push(y + '-' + String(m).padStart(2, '0'));
+        }
+        return keys;
+    }
+
+    function getAveragePerformanceAmount(cardName, targetMonth, months) {
+        const n = months > 0 ? months : 1;
+        const keys = getPreviousMonthKeys(targetMonth, n);
+        const defaults = cardDefaults[cardName] || {};
+        let sum = 0;
+        let cnt = 0;
+        keys.forEach(k => {
+            const raw = (performanceData[k] || {})[cardName];
+            if (raw != null && raw !== '') {
+                sum += parseTierAmount(raw);
+                cnt++;
+            }
+        });
+        if (cnt === 0) {
+            return parseTierAmount(defaults.defaultTier || '0만원');
+        }
+        return sum / cnt;
+    }
+
+    /* 선택 실적 이하(+0만원) 티어 혜택 합치기 */
+    function getBenefitsUpToTier(tiers, selectedTier) {
+        if (!tiers) return [];
+        const sel = parseInt(String(selectedTier).replace(/[^0-9]/g, ''), 10) || 0;
+        const seen = new Set();
+        const out = [];
+        Object.keys(tiers).forEach(tk => {
+            const tv = parseInt(String(tk).replace(/[^0-9]/g, ''), 10) || 0;
+            if (tv !== 0 && tv > sel) return;
+            (tiers[tk] || []).forEach(b => {
+                const key = b.name + '|' + (b.limit || '');
+                if (seen.has(key)) return;
+                seen.add(key);
+                out.push(b);
+            });
+        });
+        return out;
+    }
+
+    function isRateCalculable(rateStr) {
+        const rate = String(rateStr || '').replace(/\s/g, '');
+        if (!rate) return false;
+        if (/최대|이상|이하|~|～|무료|1\+1|면제|서비스|차등|할인가/.test(rate)) return false;
+        if (/\d+마일\s*\/\s*\d+원/.test(String(rateStr || '').replace(/\s/g, '')) || /\d+마일\/\d+원/.test(rate)) return true;
+        if (/^\d+원$/.test(rate)) return true;
+        if (/^\d+(\.\d+)?%$/.test(rate)) return true;
+        // 단일 비율만
+        const onlyPct = rate.match(/^(\d+(?:\.\d+)?)%$/);
+        if (onlyPct) return true;
+        return false;
+    }
+
     function getBenefitEmoji(name) {
         if (!name) return '🏷️';
         const n = name.toLowerCase();
@@ -2315,10 +2468,16 @@
 
     /* 혜택 메타 조회 (카드+혜택명) */
     function findBenefitMeta(cardName, benefitName) {
-        if (!cardBenefitsData || !cardBenefitsData[cardName]) return null;
-        for (const benefits of Object.values(cardBenefitsData[cardName])) {
-            const found = benefits.find(b => b.name === benefitName);
-            if (found) return found;
+        if (!cardBenefitsData || !benefitName) return null;
+        const searchCards = [cardName];
+        const linked = getLinkedCompanyProduct(cardName);
+        if (linked) searchCards.push(linked);
+        for (const cn of searchCards) {
+            if (!cardBenefitsData[cn]) continue;
+            for (const benefits of Object.values(cardBenefitsData[cn])) {
+                const found = benefits.find(b => b.name === benefitName);
+                if (found) return found;
+            }
         }
         return null;
     }
@@ -2404,6 +2563,39 @@
                 return b.name === chosen;
             });
 
+            const providerType = getCardProviderType(cardName);
+            const isCompanyOrMembership = providerType === '카드사' || providerType === '멤버십사';
+
+            // 연결된 카드사 혜택: 혜택별 실적산정기간(N) → 직전 N개월 평균 실적
+            const linkedProduct = defaults.linkedCompanyProduct || '';
+            if (!isCompanyOrMembership && linkedProduct && cardBenefitsData[linkedProduct]) {
+                const companyTiers = cardBenefitsData[linkedProduct];
+                const seenC = new Set();
+                Object.keys(companyTiers).forEach(tk => {
+                    (companyTiers[tk] || []).forEach(b => {
+                        const key = b.name + '|' + (b.limit || '');
+                        if (seenC.has(key)) return;
+                        seenC.add(key);
+                        const need = parseTierAmount(tk);
+                        const n = b.perfMonths > 0 ? b.perfMonths : 1;
+                        const avg = getAveragePerformanceAmount(cardName, targetMonth, n);
+                        if (need <= avg) {
+                            benefits.push({ ...b, _fromCompany: linkedProduct, _avgPerf: avg, _perfMonths: n });
+                        }
+                    });
+                });
+            }
+
+            // 카드사/멤버십 단독: 실적 수정 없음, 0만원 구간(+옵션)만
+            if (isCompanyOrMembership) {
+                benefits = getBenefitsForTier(tiers, '0만원').filter(b => {
+                    if (!b.option || !b.option.trim()) return true;
+                    const chosen = selectedOptionBenefits[b.option];
+                    if (!chosen) return false;
+                    return b.name === chosen;
+                });
+            }
+
             const cardDiv = document.createElement('div');
             cardDiv.className = 'card-item';
             cardDiv.setAttribute('data-card', cardName);
@@ -2418,23 +2610,34 @@
                         <button class="order-btn" onclick="moveCard(this, 'down')">▼</button>
                     </div>
                 </div>
+            `;
 
+            if (isCompanyOrMembership) {
+                html += `
+                <div class="performance-box">
+                    <div class="performance-top-row">
+                        <span class="performance-label">전월 실적</span>
+                        <span style="font-size:0.85rem;color:var(--text-muted);">수정 불가 · 연결 카드 평균 실적 적용</span>
+                    </div>
+                </div>`;
+            } else {
+                html += `
                 <div class="performance-box">
                     <div class="performance-top-row">
                         <span class="performance-label">전월 실적</span>
                         <select class="spinner-select" onchange="changePerformanceTier('${cardName.replace(/'/g, "\\'")}', this.value)">
             `;
-
-            tierKeys.forEach(t => {
-                const selected = t === selectedTier ? 'selected' : '';
-                html += `<option value="${t}" ${selected}>${formatTierLabel(t)}</option>`;
-            });
-
-            html += `
+                tierKeys.forEach(t => {
+                    const selected = t === selectedTier ? 'selected' : '';
+                    html += `<option value="${t}" ${selected}>${formatTierLabel(t)}</option>`;
+                });
+                html += `
                         </select>
                     </div>
-                </div>
+                </div>`;
+            }
 
+            html += `
                 <div class="benefit-list">
             `;
 
@@ -2641,16 +2844,26 @@
         Object.values(cardBenefitsData[cardName]).forEach(benefits => {
             benefits.forEach(b => {
                 if (!benefitMap.has(b.name)) {
-                    benefitMap.set(b.name, b);
+                    benefitMap.set(b.name, { ...b, _labelPrefix: '' });
                 }
             });
         });
+        const linked = getLinkedCompanyProduct(cardName);
+        if (linked && cardBenefitsData[linked]) {
+            Object.values(cardBenefitsData[linked]).forEach(benefits => {
+                benefits.forEach(b => {
+                    if (!benefitMap.has(b.name)) {
+                        benefitMap.set(b.name, { ...b, _labelPrefix: `[${linked}] ` });
+                    }
+                });
+            });
+        }
 
         benefitSelect.innerHTML = '<option value="">혜택을 선택하세요</option>';
         benefitMap.forEach((b, name) => {
             const opt = document.createElement('option');
             opt.value = name;
-            opt.textContent = `${getBenefitEmoji(name)} ${name} (${b.type})`;
+            opt.textContent = `${b._labelPrefix || ''}${getBenefitEmoji(name)} ${name} (${b.type || ''})`;
             opt.dataset.type = b.type || '';
             opt.dataset.rate = b.rate || '';
             opt.dataset.limit = b.limit || '';
@@ -2660,6 +2873,8 @@
         document.getElementById('form-payment').value = '';
         document.getElementById('form-amount').value = '';
         document.getElementById('form-calc-hint').textContent = '';
+        const payGroup = document.getElementById('form-payment-group');
+        if (payGroup) payGroup.style.display = '';
     }
 
     function onBenefitOrPaymentChange() {
@@ -2669,10 +2884,12 @@
         const amountInput = document.getElementById('form-amount');
         const amountLabel = document.getElementById('form-amount-label');
         const hint = document.getElementById('form-calc-hint');
+        const payGroup = document.getElementById('form-payment-group');
 
         if (!cardName || !benefitName) {
             amountLabel.textContent = '혜택 금액 / 마일리지';
             hint.textContent = '';
+            if (payGroup) payGroup.style.display = '';
             return;
         }
 
@@ -2681,6 +2898,21 @@
 
         const unit = getUnitLabel(meta.rate, meta.limit);
         amountLabel.textContent = unit === '마일' ? '적립 마일리지' : '혜택 금액 (원)';
+
+        const provider = meta.provider || getCardProviderType(cardName);
+        const calculable = isRateCalculable(meta.rate);
+
+        // 카드사/멤버십사 + 계산 어려운 할인율 → 결제금액 없이 할인 금액만
+        if ((provider === '카드사' || provider === '멤버십사') && !calculable) {
+            if (payGroup) payGroup.style.display = 'none';
+            document.getElementById('form-payment').value = '';
+            amountInput.placeholder = '할인 금액을 입력하세요';
+            hint.textContent = `할인 조건: ${meta.rate || '-'} / 한도: ${meta.limit || '없음'} · 직접 입력`;
+            return;
+        }
+
+        if (payGroup) payGroup.style.display = '';
+        amountInput.placeholder = '자동 계산됩니다';
 
         if (payment <= 0) {
             amountInput.value = '';
