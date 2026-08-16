@@ -881,7 +881,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.42</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.43</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1079,7 +1079,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.42';
+            badge.textContent = 'v1.0.43';
             return;
         }
 
@@ -1132,7 +1132,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.42';
+            badge.textContent = 'v1.0.43';
         }
         fetchAppVersion();
 
@@ -1811,6 +1811,8 @@
         getCardOrder().forEach(cardName => {
             const tiers = cardBenefitsData[cardName];
             if (!tiers) return;
+            // 카드사 상품은 연결 카드 경유로만 집계
+            if (getCardProviderType(cardName) === '카드사') return;
             const tierKeys = getTierKeys(tiers);
             const defaults = cardDefaults[cardName] || {};
             let selectedTier = monthPerf[cardName] || defaults.defaultTier || tierKeys[0];
@@ -2588,6 +2590,10 @@
             const tiers = cardBenefitsData[cardName];
             if (!tiers) return;
 
+            // 카드사 혜택은 연결된 카드 아래에서만 표시 (단독 카드 형태 숨김)
+            const providerType = getCardProviderType(cardName);
+            if (providerType === '카드사') return;
+
             const tierKeys = getTierKeys(tiers);
 
             // 현재 선택된 티어 (월별 설정 > 기본 설정 > 가장 낮은 티어)
@@ -2605,7 +2611,6 @@
                 return b.name === chosen;
             });
 
-            const providerType = getCardProviderType(cardName);
             const isCompanyOrMembership = providerType === '카드사' || providerType === '멤버십사';
 
             // 연결된 카드사 혜택: 혜택별 실적산정기간(N) → 직전 N개월 평균 실적
