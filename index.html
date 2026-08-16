@@ -881,7 +881,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.43</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.44</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1079,7 +1079,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.43';
+            badge.textContent = 'v1.0.44';
             return;
         }
 
@@ -1132,7 +1132,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.43';
+            badge.textContent = 'v1.0.44';
         }
         fetchAppVersion();
 
@@ -2292,11 +2292,25 @@
         renderHistoryList();
     }
 
-    /* --- 한도 숫자 추출 --- */
+    /* --- 한도 숫자 추출 (회/매/장/원/마일) --- */
     function parseLimitAmount(limitStr) {
-        if (!limitStr || limitStr === '무제한' || limitStr.trim() === '') return null;
-        const match = String(limitStr).replace(/,/g, '').match(/(\d+)/);
-        return match ? parseInt(match[1], 10) : null;
+        if (!limitStr || limitStr === '무제한' || String(limitStr).trim() === '') return null;
+        const s = String(limitStr).replace(/,/g, '');
+        // 회·매·장·마일·원 순으로 첫 숫자 사용
+        const ordered = [
+            /(\d+)\s*회/,
+            /(\d+)\s*매/,
+            /(\d+)\s*장/,
+            /(\d+)\s*마일/,
+            /최대\s*(\d+)\s*원/,
+            /(\d+)\s*원/
+        ];
+        for (const re of ordered) {
+            const m = s.match(re);
+            if (m) return parseInt(m[1], 10);
+        }
+        const m = s.match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : null;
     }
 
     function isMileageUnit(rate, limit) {
@@ -2305,7 +2319,17 @@
     }
 
     function getUnitLabel(rate, limit) {
-        return isMileageUnit(rate, limit) ? '마일' : '원';
+        if (isMileageUnit(rate, limit)) return '마일';
+        const lim = String(limit || '');
+        // parseLimitAmount와 동일한 우선순위
+        if (/(\d+)\s*회/.test(lim)) return '회';
+        if (/(\d+)\s*매/.test(lim)) return '매';
+        if (/(\d+)\s*장/.test(lim)) return '장';
+        if (/(\d+)\s*원/.test(lim)) return '원';
+        if (/매/.test(lim)) return '매';
+        if (/장/.test(lim)) return '장';
+        if (/회/.test(lim)) return '회';
+        return '원';
     }
 
     function isIntegratedLimit(limitStr) {
