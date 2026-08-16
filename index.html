@@ -881,7 +881,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.41</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.42</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1079,7 +1079,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.41';
+            badge.textContent = 'v1.0.42';
             return;
         }
 
@@ -1132,7 +1132,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.41';
+            badge.textContent = 'v1.0.42';
         }
         fetchAppVersion();
 
@@ -1253,6 +1253,7 @@
         let iProvider = idx('제공');
         let iPeriod = idx('기간');
         let iPerfMonths = idx('실적산정기간');
+        let iGrade = idx('등급');
 
         // 헤더를 못 찾은 경우: 열 개수로 포맷 추정
         if (iCard < 0) {
@@ -1291,6 +1292,7 @@
             const period = iPeriod >= 0 ? (cols[iPeriod] || '').trim() : '';
             const perfMonthsRaw = iPerfMonths >= 0 ? (cols[iPerfMonths] || '').trim() : '';
             const perfMonths = perfMonthsRaw ? (parseInt(perfMonthsRaw, 10) || 0) : 0;
+            const grade = iGrade >= 0 ? (cols[iGrade] || '').trim() : '';
 
             // 카드명 자리에 발급처만 들어온 잘못된 매핑 방지
             if (!cardName || !tier || !benefitName) continue;
@@ -1308,7 +1310,8 @@
                 option: option,
                 provider: provider,
                 period: period,
-                perfMonths: perfMonths
+                perfMonths: perfMonths,
+                grade: grade
             });
         }
 
@@ -1570,6 +1573,16 @@
             const providerType = getCardProviderType(cardName);
             const isCompanyOrMembership = providerType === '카드사' || providerType === '멤버십사';
 
+            // 등급 목록 (카드사/멤버십)
+            const gradeSet = new Set();
+            Object.values(tiers).forEach(benefits => {
+                benefits.forEach(b => {
+                    if (b.grade && String(b.grade).trim()) gradeSet.add(String(b.grade).trim());
+                });
+            });
+            const gradeList = Array.from(gradeSet).sort();
+            const selectedGrades = defaults.selectedGrades || [];
+
             let html = `
                 <div class="default-card-block" data-card="${cardName}">
                     <div class="default-card-name">${formatCardLabel(cardName)}</div>
@@ -1588,7 +1601,18 @@
                 html += `</select></div>`;
             }
 
-            if (hasOptions) {
+            // 카드: 옵션 혜택 선택 / 카드사·멤버십: 등급 해당 여부
+            if (isCompanyOrMembership && gradeList.length > 0) {
+                html += `<div class="option-group">
+                    <div class="option-group-title">등급 — 해당하는 등급 선택 (복수 가능)</div>`;
+                gradeList.forEach(g => {
+                    const checked = selectedGrades.includes(g) ? 'checked' : '';
+                    html += `<label style="display:flex;align-items:center;gap:8px;margin:6px 0;font-size:0.85rem;cursor:pointer;">
+                        <input type="checkbox" class="grade-check" value="${g}" ${checked}> ${g}
+                    </label>`;
+                });
+                html += `<div style="font-size:0.72rem;color:var(--text-muted);">등급 없는 기본 혜택은 항상 표시됩니다.</div></div>`;
+            } else if (hasOptions) {
                 Object.keys(optionMap).sort().forEach(opt => {
                     const names = Array.from(optionMap[opt]);
                     const selectedName = selectedOptionBenefits[opt] || '';
@@ -1812,7 +1836,12 @@
                         const need = parseTierAmount(tk);
                         const n = b.perfMonths > 0 ? b.perfMonths : 1;
                         const avg = getAveragePerformanceAmount(cardName, month, n);
-                        if (need <= avg) benefits.push(b);
+                        if (need <= avg) {
+                            const g = (b.grade || '').trim();
+                            const grades = (cardDefaults[linkedProduct] || {}).selectedGrades || [];
+                            if (g && !grades.includes(g)) return;
+                            benefits.push(b);
+                        }
                     });
                 });
             }
@@ -2030,9 +2059,12 @@
             });
 
             const companySel = block.querySelector('.company-link-select');
+            const gradeChecks = block.querySelectorAll('.grade-check:checked');
+            const selectedGrades = Array.from(gradeChecks).map(c => c.value);
             cardDefaults[cardName] = {
                 defaultTier: tierSelect ? tierSelect.value : '',
                 selectedOptionBenefits: selectedOptionBenefits,
+                selectedGrades: selectedGrades,
                 linkedCompanyProduct: companySel ? (companySel.value || '') : (cardDefaults[cardName] && cardDefaults[cardName].linkedCompanyProduct) || ''
             };
         });
@@ -2364,6 +2396,16 @@
         return Object.keys(cardBenefitsData).filter(n => getCardProviderType(n) === provider);
     }
 
+    /* 등급 필터: 등급 없으면 기본 혜택, 있으면 selectedGrades에 포함된 것만 */
+    function filterBenefitsByGrade(benefits, cardName) {
+        const selected = (cardDefaults[cardName] || {}).selectedGrades || [];
+        return (benefits || []).filter(b => {
+            const g = (b.grade || '').trim();
+            if (!g) return true;
+            return selected.includes(g);
+        });
+    }
+
     function getLinkedCompanyProduct(cardName) {
         const d = cardDefaults[cardName] || {};
         return d.linkedCompanyProduct || '';
@@ -2580,19 +2622,31 @@
                         const n = b.perfMonths > 0 ? b.perfMonths : 1;
                         const avg = getAveragePerformanceAmount(cardName, targetMonth, n);
                         if (need <= avg) {
+                            const g = (b.grade || '').trim();
+                            const grades = (cardDefaults[linkedProduct] || {}).selectedGrades || [];
+                            if (g && !grades.includes(g)) return;
                             benefits.push({ ...b, _fromCompany: linkedProduct, _avgPerf: avg, _perfMonths: n });
                         }
                     });
                 });
             }
 
-            // 카드사/멤버십 단독: 실적 수정 없음, 0만원 구간(+옵션)만
+            // 카드사/멤버십 단독: 실적 수정 없음, 등급 필터 적용
             if (isCompanyOrMembership) {
-                benefits = getBenefitsForTier(tiers, '0만원').filter(b => {
-                    if (!b.option || !b.option.trim()) return true;
-                    const chosen = selectedOptionBenefits[b.option];
-                    if (!chosen) return false;
-                    return b.name === chosen;
+                benefits = filterBenefitsByGrade(getBenefitsForTier(tiers, '0만원'), cardName);
+                // 등급 외 티어에 있는 혜택도 등급만 맞으면 포함
+                const more = [];
+                Object.keys(tiers).forEach(tk => {
+                    if (tk === '0만원') return;
+                    more.push(...(tiers[tk] || []));
+                });
+                benefits = filterBenefitsByGrade(benefits.concat(more), cardName);
+                // 이름 중복 제거
+                const seenN = new Set();
+                benefits = benefits.filter(b => {
+                    if (seenN.has(b.name)) return false;
+                    seenN.add(b.name);
+                    return true;
                 });
             }
 
