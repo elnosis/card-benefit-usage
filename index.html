@@ -881,7 +881,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.44</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.47</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1079,7 +1079,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.44';
+            badge.textContent = 'v1.0.47';
             return;
         }
 
@@ -1132,7 +1132,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.44';
+            badge.textContent = 'v1.0.47';
         }
         fetchAppVersion();
 
@@ -1867,10 +1867,11 @@
                     }
 
                     const groupNames = group.map(b => b.name);
+                    const usagePrefix = getUsagePeriodPrefix(month, ben.period);
                     const used = benefitData
                         .filter(item => item.cardName === cardName &&
                                         groupNames.includes(item.benefitName) &&
-                                        item.date.startsWith(month))
+                                        item.date.startsWith(usagePrefix))
                         .reduce((sum, item) => sum + item.amount, 0);
 
                     const limitNum = parseLimitAmount(ben.limit);
@@ -1910,10 +1911,11 @@
                 if (applyThreeMonthFilter === true && applyUsageFilter &&
                     !wasBenefitUsedInLastThreeMonths(cardName, ben.name)) return;
 
+                const usagePrefix = getUsagePeriodPrefix(month, ben.period);
                 const used = benefitData
                     .filter(item => item.cardName === cardName &&
                                     item.benefitName === ben.name &&
-                                    item.date.startsWith(month))
+                                    item.date.startsWith(usagePrefix))
                     .reduce((sum, item) => sum + item.amount, 0);
 
                 const limitNum = parseLimitAmount(ben.limit);
@@ -2039,11 +2041,19 @@
             const meta = r.isIntegrated
                 ? `${r.benefit.rate || '-'} · 통합`
                 : `${r.benefit.rate || '-'} · ${r.benefit.type || ''}`;
+            // 연간 혜택: 사용/잔여 표기에 연·년 표시
+            const isAnnual = (r.benefit?.period || '').trim() === '연간';
+            let remainDisplay = remainText;
+            if (isAnnual && !r.isUnlimited) {
+                remainDisplay = `사용: 연 ${r.used.toLocaleString()}${r.unit} / ${r.limitNum.toLocaleString()}${r.unit}<br>잔여: ${r.remain.toLocaleString()}${r.unit} / 년`;
+            } else if (isAnnual && r.isUnlimited) {
+                remainDisplay = `사용: 연 ${r.used.toLocaleString()}${r.unit} · 한도 없음`;
+            }
             return `<div class="search-result-item">
                 <div class="sr-card">${formatCardLabel(r.cardName)}</div>
                 <div class="sr-name">${title}</div>
                 <div class="sr-meta">${meta}</div>
-                <div class="sr-remain">${remainText}</div>
+                <div class="sr-remain">${remainDisplay}</div>
             </div>`;
         }).join('');
     }
@@ -2457,6 +2467,18 @@
         return keys;
     }
 
+    function isAnnualPeriod(period) {
+        return String(period || '').trim() === '연간';
+    }
+
+    /* 사용량 집계 기간 접두어: 연간이면 YYYY, 아니면 YYYY-MM */
+    function getUsagePeriodPrefix(targetMonth, period) {
+        if (isAnnualPeriod(period) && targetMonth) {
+            return String(targetMonth).slice(0, 4); // 연도
+        }
+        return targetMonth;
+    }
+
     function getAveragePerformanceAmount(cardName, targetMonth, months) {
         const n = months > 0 ? months : 1;
         const keys = getPreviousMonthKeys(targetMonth, n);
@@ -2746,10 +2768,11 @@
                     const limitNum = parseLimitAmount(limitKey);
                     const unit = getUnitLabel(group[0].rate, limitKey);
                     const names = group.map(b => b.name);
+                    const usagePrefix = getUsagePeriodPrefix(targetMonth, group[0].period);
                     const used = benefitData
                         .filter(item => item.cardName === cardName &&
                                         names.includes(item.benefitName) &&
-                                        item.date.startsWith(targetMonth))
+                                        item.date.startsWith(usagePrefix))
                         .reduce((sum, item) => sum + item.amount, 0);
                     const isUnlimited = !limitNum;
                     const remain = isUnlimited ? null : Math.max(0, limitNum - used);
@@ -2797,10 +2820,11 @@
 
                 // 일반 혜택 렌더
                 normalBenefits.forEach(ben => {
+                    const usagePrefix = getUsagePeriodPrefix(targetMonth, ben.period);
                     const used = benefitData
                         .filter(item => item.cardName === cardName &&
                                         item.benefitName === ben.name &&
-                                        item.date.startsWith(targetMonth))
+                                        item.date.startsWith(usagePrefix))
                         .reduce((sum, item) => sum + item.amount, 0);
 
                     const limitNum = parseLimitAmount(ben.limit);
@@ -2820,14 +2844,25 @@
                                 <span class="benefit-name">${emoji} ${ben.name}</span>
                                 <span class="type ${typeClass}">${ben.type || ''}</span>
                             </div>
-                            <div class="benefit-meta">${ben.rate || ''} ${ben.option ? '(옵션 ' + ben.option + ')' : ''}</div>
+                            <div class="benefit-meta">${ben.rate || ''}${ben.option ? ' (옵션 ' + ben.option + ')' : ''}${ben.grade ? ' · ' + ben.grade : ''}</div>
                     `;
 
+                    const isAnnualBen = (ben.period || '').trim() === '연간';
                     if (isUnlimited) {
                         html += `
                             <div class="benefit-limit-row">
-                                <span>사용: <strong>${used.toLocaleString()}${unit}</strong></span>
+                                <span>사용: <strong>${isAnnualBen ? '연 ' : ''}${used.toLocaleString()}${unit}</strong></span>
                                 <span class="no-limit-text">${ben.limit || '한도 없음'}</span>
+                            </div>
+                        `;
+                    } else if (isAnnualBen) {
+                        html += `
+                            <div class="benefit-limit-row" style="flex-direction:column;align-items:stretch;gap:4px;">
+                                <span>사용: <strong>연 ${used.toLocaleString()}${unit}</strong> / ${limitNum.toLocaleString()}${unit}</span>
+                                <span class="benefit-remaining${isExhausted ? ' done' : ''}" style="text-align:left;">${isExhausted ? '사용 완료 ✅' : '잔여: ' + remain.toLocaleString() + unit + ' / 년'}</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width:${percent}%"></div>
                             </div>
                         `;
                     } else {
