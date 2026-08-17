@@ -719,6 +719,14 @@
             margin-bottom: 6px;
         }
 
+        .type-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: flex-end;
+            flex-shrink: 0;
+        }
+
         .benefit-name {
             font-size: 0.85rem;
             font-weight: 600;
@@ -924,7 +932,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.56</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.57</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1137,7 +1145,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.56';
+            badge.textContent = 'v1.0.57';
             return;
         }
 
@@ -1195,7 +1203,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.56';
+            badge.textContent = 'v1.0.57';
         }
         fetchAppVersion();
 
@@ -2302,9 +2310,10 @@
                 : `잔여 ${r.remain.toLocaleString()}${r.unit} / ${r.limitNum.toLocaleString()}${r.unit}`;
             const companyName = r.benefit?._fromCompany || '';
             const isCompanyRem = (r.benefit?.provider || '') === '카드사' || !!companyName;
+            const namePrefix = r.isIntegrated ? '' : formatBenefitNamePrefix(r.benefit || {});
             const title = r.isIntegrated
                 ? `🔗 통합 한도 · ${(r.names || []).map(n => getBenefitEmoji(n) + ' ' + n).join(' · ')}`
-                : `${getBenefitEmoji(r.benefit.name)} ${companyName ? '[' + companyName + '] ' : ''}${r.benefit.name}`;
+                : `${getBenefitEmoji(r.benefit.name)} ${namePrefix}${r.benefit.name}`;
             const meta = r.isIntegrated
                 ? `${r.benefit.rate || '-'} · 통합`
                 : `${r.benefit.rate || '-'} · ${isCompanyRem ? '카드사혜택' : (r.benefit.type || '')}`;
@@ -2607,6 +2616,32 @@
         if (/장/.test(lim)) return '장';
         if (/회/.test(lim)) return '회';
         return '원';
+    }
+
+    function buildBenefitTagsHtml(ben) {
+        const tags = [];
+        if (ben._fromCompany || ben.provider === '카드사') {
+            tags.push(['카드사혜택', 'type-카드사혜택']);
+        }
+        const t = (ben.type || '').trim();
+        if (t && t !== '카드사혜택' && t !== '통합') {
+            tags.push([t, 'type-' + t.replace(/\s/g, '')]);
+        }
+        if (!tags.length && t) {
+            tags.push([t, 'type-' + t.replace(/\s/g, '')]);
+        }
+        if (!tags.length) return '';
+        return '<span class="type-tags">' + tags.map(([label, cls]) =>
+            `<span class="type ${cls}">${label}</span>`
+        ).join('') + '</span>';
+    }
+
+    function formatBenefitNamePrefix(ben) {
+        let s = '';
+        if (ben._fromCompany) s += '[' + ben._fromCompany + '] ';
+        if (ben.option && String(ben.option).trim()) s += '[옵션' + String(ben.option).trim() + '] ';
+        if (ben.grade && String(ben.grade).trim()) s += '[' + String(ben.grade).trim() + '] ';
+        return s;
     }
 
     function isIntegratedLimit(benOrLimit) {
@@ -3138,12 +3173,13 @@
 
                     // 개별 혜택명만 간단히 표시 (한도 바 없이)
                     group.forEach(ben => {
-                        const typeClass = 'type-' + (ben.type || 'discount').replace(/\s/g, '');
+                        const namePrefix = formatBenefitNamePrefix(ben);
+                        const tagsHtml = buildBenefitTagsHtml(ben);
                         html += `<div class="benefit-item clickable" style="margin-left:8px;opacity:0.9;"
                             onclick="openBenefitDetail('${escJs(cardName)}','${escJs(ben.name)}','${escJs(targetMonth)}')">
                             <div class="benefit-item-header">
-                                <span class="benefit-name">${getBenefitEmoji(ben.name)} ${ben.name}</span>
-                                <span class="type ${typeClass}">${ben.type || ''}</span>
+                                <span class="benefit-name">${getBenefitEmoji(ben.name)} ${namePrefix}${ben.name}</span>
+                                ${tagsHtml}
                             </div>
                             <div class="benefit-meta">${ben.rate || ''} (통합 한도 적용)</div>
                         </div>`;
@@ -3164,22 +3200,20 @@
                     const isUnlimited = !limitNum;
                     const remain = isUnlimited ? null : Math.max(0, limitNum - used);
                     const percent = isUnlimited ? 0 : Math.min(100, Math.round((used / limitNum) * 100));
-                    const isCompanyBen = !!(ben._fromCompany || ben.provider === '카드사');
-                    const typeLabel = isCompanyBen ? '카드사혜택' : (ben.type || '');
-                    const typeClass = isCompanyBen ? 'type-카드사혜택' : ('type-' + (ben.type || 'discount').replace(/\s/g, ''));
                     const isExhausted = !isUnlimited && remain === 0;
                     const emoji = getBenefitEmoji(ben.name);
                     const disabledClass = isExhausted ? ' disabled' : '';
-                    const companyPrefix = ben._fromCompany ? '[' + ben._fromCompany + '] ' : (isCompanyBen ? '' : '');
+                    const namePrefix = formatBenefitNamePrefix(ben);
+                    const tagsHtml = buildBenefitTagsHtml(ben);
 
                     html += `
                         <div class="benefit-item clickable${disabledClass}"
                             onclick="openBenefitDetail('${escJs(cardName)}','${escJs(ben.name)}','${escJs(targetMonth)}')">
                             <div class="benefit-item-header">
-                                <span class="benefit-name">${emoji} ${companyPrefix}${ben.name}</span>
-                                <span class="type ${typeClass}">${typeLabel}</span>
+                                <span class="benefit-name">${emoji} ${namePrefix}${ben.name}</span>
+                                ${tagsHtml}
                             </div>
-                            <div class="benefit-meta">${ben.rate || ''}${ben.option ? ' (옵션 ' + ben.option + ')' : ''}${ben.grade ? ' · ' + ben.grade : ''}${!isCompanyBen && ben.type ? '' : (isCompanyBen && ben.type ? ' · ' + ben.type : '')}</div>
+                            <div class="benefit-meta">${ben.rate || ''}</div>
                     `;
 
                     const isAnnualBen = (ben.period || '').trim() === '연간';
@@ -3348,9 +3382,18 @@
             const opt = document.createElement('option');
             opt.value = name;
             const emoji = getBenefitEmoji(name);
+            const prefix = formatBenefitNamePrefix({
+                _fromCompany: b._isCompany ? (b._labelPrefix || '').replace(/[\[\]\s]/g, '') : '',
+                option: b.option,
+                grade: b.grade
+            });
+            // _labelPrefix is like "[SFC] " for company
+            const companyPart = b._labelPrefix || '';
+            let mid = companyPart;
+            if (b.option && String(b.option).trim()) mid += '[옵션' + String(b.option).trim() + '] ';
+            if (b.grade && String(b.grade).trim()) mid += '[' + String(b.grade).trim() + '] ';
             const typeLabel = b._isCompany ? '카드사혜택' : (b.type || '');
-            // 이모티콘 뒤 카드사명
-            opt.textContent = `${emoji} ${b._labelPrefix || ''}${name}${typeLabel ? ' (' + typeLabel + ')' : ''}`;
+            opt.textContent = `${emoji} ${mid}${name}${typeLabel ? ' (' + typeLabel + ')' : ''}`;
             opt.dataset.type = b._isCompany ? '카드사혜택' : (b.type || '');
             opt.dataset.rate = b.rate || '';
             opt.dataset.limit = b.limit || '';
