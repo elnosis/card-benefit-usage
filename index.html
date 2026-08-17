@@ -924,7 +924,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.52</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.53</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1137,7 +1137,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.52';
+            badge.textContent = 'v1.0.53';
             return;
         }
 
@@ -1195,7 +1195,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.52';
+            badge.textContent = 'v1.0.53';
         }
         fetchAppVersion();
 
@@ -2288,7 +2288,7 @@
             const isCompanyRem = (r.benefit?.provider || '') === '카드사' || !!companyName;
             const title = r.isIntegrated
                 ? `🔗 통합 한도 · ${(r.names || []).map(n => getBenefitEmoji(n) + ' ' + n).join(' · ')}`
-                : `${companyName ? '[' + companyName + '] ' : ''}${getBenefitEmoji(r.benefit.name)} ${r.benefit.name}`;
+                : `${getBenefitEmoji(r.benefit.name)} ${companyName ? '[' + companyName + '] ' : ''}${r.benefit.name}`;
             const meta = r.isIntegrated
                 ? `${r.benefit.rate || '-'} · 통합`
                 : `${r.benefit.rate || '-'} · ${isCompanyRem ? '카드사혜택' : (r.benefit.type || '')}`;
@@ -3144,7 +3144,7 @@
                         <div class="benefit-item clickable${disabledClass}"
                             onclick="openBenefitDetail('${escJs(cardName)}','${escJs(ben.name)}','${escJs(targetMonth)}')">
                             <div class="benefit-item-header">
-                                <span class="benefit-name">${companyPrefix}${emoji} ${ben.name}</span>
+                                <span class="benefit-name">${emoji} ${companyPrefix}${ben.name}</span>
                                 <span class="type ${typeClass}">${typeLabel}</span>
                             </div>
                             <div class="benefit-meta">${ben.rate || ''}${ben.option ? ' (옵션 ' + ben.option + ')' : ''}${ben.grade ? ' · ' + ben.grade : ''}${!isCompanyBen && ben.type ? '' : (isCompanyBen && ben.type ? ' · ' + ben.type : '')}</div>
@@ -3264,26 +3264,50 @@
         const dateVal = document.getElementById('form-date')?.value || '';
         const monthKey = dateVal ? dateVal.slice(0, 7) : getCurrentYearMonth();
 
-        let list = [];
-        Object.values(cardBenefitsData[cardName]).forEach(benefits => {
-            benefits.forEach(b => list.push({ ...b, _labelPrefix: '' }));
-        });
-        list = filterBenefitsByOption(list, cardName, monthKey);
-        list = filterBenefitsByGrade(list, cardName, monthKey);
+        // 현황과 동일: 해당 월 실적 + 옵션 + 등급
+        const tiers = cardBenefitsData[cardName];
+        const tierKeys = getTierKeys(tiers);
+        const defaults = cardDefaults[cardName] || {};
+        const monthPerf = performanceData[monthKey] || {};
+        let selectedTier = monthPerf[cardName] || defaults.defaultTier || tierKeys[0];
+        if (!tierKeys.includes(selectedTier)) selectedTier = tierKeys[0];
+
+        let list = filterBenefitsByOption(
+            getBenefitsForTier(tiers, selectedTier),
+            cardName,
+            monthKey
+        );
+        list = filterBenefitsByGrade(list, cardName, monthKey).map(b => ({ ...b, _labelPrefix: '', _isCompany: false }));
 
         const benefitMap = new Map();
         list.forEach(b => {
             if (!benefitMap.has(b.name)) benefitMap.set(b.name, b);
         });
+
         const linked = getLinkedCompanyProduct(cardName);
         if (linked && cardBenefitsData[linked]) {
-            let clist = [];
-            Object.values(cardBenefitsData[linked]).forEach(benefits => {
-                benefits.forEach(b => clist.push({ ...b, _labelPrefix: `[${linked}] ` }));
-            });
-            clist = filterBenefitsByGrade(clist, linked, monthKey);
-            clist.forEach(b => {
-                if (!benefitMap.has(b.name)) benefitMap.set(b.name, b);
+            const companyTiers = cardBenefitsData[linked];
+            const grades = getMonthGrades(monthKey, linked);
+            const seenC = new Set();
+            Object.keys(companyTiers).forEach(tk => {
+                (companyTiers[tk] || []).forEach(b => {
+                    const key = b.name + '|' + (b.limit || '');
+                    if (seenC.has(key)) return;
+                    seenC.add(key);
+                    const need = parseTierAmount(tk);
+                    const n = b.perfMonths > 0 ? b.perfMonths : 1;
+                    const avg = getAveragePerformanceAmount(cardName, monthKey, n);
+                    if (need > avg) return;
+                    const g = (b.grade || '').trim();
+                    if (g && !grades.includes(g)) return;
+                    if (!benefitMap.has(b.name)) {
+                        benefitMap.set(b.name, {
+                            ...b,
+                            _labelPrefix: '[' + linked + '] ',
+                            _isCompany: true
+                        });
+                    }
+                });
             });
         }
 
@@ -3291,8 +3315,11 @@
         benefitMap.forEach((b, name) => {
             const opt = document.createElement('option');
             opt.value = name;
-            opt.textContent = `${b._labelPrefix || ''}${getBenefitEmoji(name)} ${name} (${b.type || ''})`;
-            opt.dataset.type = b.type || '';
+            const emoji = getBenefitEmoji(name);
+            const typeLabel = b._isCompany ? '카드사혜택' : (b.type || '');
+            // 이모티콘 뒤 카드사명
+            opt.textContent = `${emoji} ${b._labelPrefix || ''}${name}${typeLabel ? ' (' + typeLabel + ')' : ''}`;
+            opt.dataset.type = b._isCompany ? '카드사혜택' : (b.type || '');
             opt.dataset.rate = b.rate || '';
             opt.dataset.limit = b.limit || '';
             benefitSelect.appendChild(opt);
