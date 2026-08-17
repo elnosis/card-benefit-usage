@@ -924,7 +924,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.55</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.56</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1137,7 +1137,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.55';
+            badge.textContent = 'v1.0.56';
             return;
         }
 
@@ -1195,7 +1195,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.55';
+            badge.textContent = 'v1.0.56';
         }
         fetchAppVersion();
 
@@ -2073,16 +2073,30 @@
             let selectedTier = monthPerf[cardName] || defaults.defaultTier || tierKeys[0];
             if (!tierKeys.includes(selectedTier)) selectedTier = tierKeys[0];
 
-            let benefits = filterBenefitsByOption(
-                getBenefitsForTier(tiers, selectedTier),
-                cardName,
-                month
-            );
-            const linkedProduct = defaults.linkedCompanyProduct || '';
             const providerTypeRem = getCardProviderType(cardName);
+            let benefits = [];
+
+            // 멤버십사: 실적 구간 무시, 등급만 적용 (현황과 동일)
+            if (providerTypeRem === '멤버십사') {
+                const all = [];
+                Object.keys(tiers).forEach(tk => all.push(...(tiers[tk] || [])));
+                benefits = filterBenefitsByGrade(all, cardName, month);
+            } else {
+                // 일반 카드: 해당 월 전월실적 + 옵션 + 등급
+                benefits = filterBenefitsByOption(
+                    getBenefitsForTier(tiers, selectedTier),
+                    cardName,
+                    month
+                );
+                benefits = filterBenefitsByGrade(benefits, cardName, month);
+            }
+
+            // 연결 카드사 혜택: 평균 실적 + 등급
+            const linkedProduct = defaults.linkedCompanyProduct || '';
             if (providerTypeRem !== '카드사' && providerTypeRem !== '멤버십사' && linkedProduct && cardBenefitsData[linkedProduct]) {
                 const companyTiers = cardBenefitsData[linkedProduct];
                 const seenC = new Set();
+                const grades = getMonthGrades(month, linkedProduct);
                 Object.keys(companyTiers).forEach(tk => {
                     (companyTiers[tk] || []).forEach(b => {
                         const key = b.name + '|' + (b.limit || '');
@@ -2091,12 +2105,10 @@
                         const need = parseTierAmount(tk);
                         const n = b.perfMonths > 0 ? b.perfMonths : 1;
                         const avg = getAveragePerformanceAmount(cardName, month, n);
-                        if (need <= avg) {
-                            const g = (b.grade || '').trim();
-                            const grades = getMonthGrades(month, linkedProduct);
-                            if (g && !grades.includes(g)) return;
-                            benefits.push({ ...b, _fromCompany: linkedProduct });
-                        }
+                        if (need > avg) return;
+                        const g = (b.grade || '').trim();
+                        if (g && !grades.includes(g)) return;
+                        benefits.push({ ...b, _fromCompany: linkedProduct });
                     });
                 });
             }
