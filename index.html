@@ -932,7 +932,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.57</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.58</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1145,7 +1145,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.57';
+            badge.textContent = 'v1.0.58';
             return;
         }
 
@@ -1203,7 +1203,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.57';
+            badge.textContent = 'v1.0.58';
         }
         fetchAppVersion();
 
@@ -1289,11 +1289,20 @@
                 }
                 cardBenefitsData = parsed;
                 localStorage.setItem('card_picker_cherry_benefits', JSON.stringify(cardBenefitsData));
-                // 카드 순서 초기화 (이전 잘못된 키 제거)
-                localStorage.removeItem("card_order_cherry");
+                // 기존 카드 순서 유지, 신규 카드만 맨 아래 추가
+                const prevOrder = JSON.parse(localStorage.getItem('card_order_cherry') || 'null');
+                const allNames = Object.keys(cardBenefitsData);
+                let nextOrder;
+                if (Array.isArray(prevOrder) && prevOrder.length) {
+                    nextOrder = prevOrder.filter(c => allNames.includes(c));
+                    allNames.forEach(c => { if (!nextOrder.includes(c)) nextOrder.push(c); });
+                } else {
+                    nextOrder = allNames;
+                }
+                localStorage.setItem('card_order_cherry', JSON.stringify(nextOrder));
                 renderAll();
                 populateFormCards();
-                const names = Object.keys(cardBenefitsData);
+                const names = nextOrder;
                 alert(`카드 혜택을 성공적으로 불러왔습니다!\n총 ${names.length}개 카드\n\n${names.map(n => '· ' + n).join('\n')}`);
             } catch (err) {
                 alert("CSV 파일을 읽는 중 오류가 발생했습니다: " + err.message);
@@ -2902,6 +2911,51 @@
     }
 
     /* --- 카드 순서 --- */
+    /* 카드 자체 혜택(원 단위) 한도/사용 합계 — 통합 한도는 그룹당 1회 */
+    function computeCardWonTotals(cardName, benefits, targetMonth) {
+        const cardOnly = (benefits || []).filter(b => !b._fromCompany && b.provider !== '카드사');
+        let totalLimit = 0;
+        let totalUsed = 0;
+        let hasAny = false;
+        const seen = new Set();
+        cardOnly.forEach(ben => {
+            const unit = getUnitLabel(ben.rate, ben.limit);
+            if (unit !== '원') return;
+            if (isIntegratedLimit(ben)) {
+                const gkey = getIntegratedGroupKey(ben);
+                if (seen.has(gkey)) return;
+                seen.add(gkey);
+                const group = cardOnly.filter(b => isIntegratedLimit(b) && getIntegratedGroupKey(b) === gkey);
+                const limitNum = parseLimitAmount(group[0].limit);
+                if (!limitNum) return;
+                hasAny = true;
+                totalLimit += limitNum;
+                const names = group.map(b => b.name);
+                const usagePrefix = getUsagePeriodPrefix(targetMonth, group[0].period);
+                const used = (benefitData || [])
+                    .filter(item => item.cardName === cardName &&
+                                    names.includes(item.benefitName) &&
+                                    item.date.startsWith(usagePrefix))
+                    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+                totalUsed += used;
+            } else {
+                const limitNum = parseLimitAmount(ben.limit);
+                if (!limitNum) return;
+                hasAny = true;
+                totalLimit += limitNum;
+                const usagePrefix = getUsagePeriodPrefix(targetMonth, ben.period);
+                const used = (benefitData || [])
+                    .filter(item => item.cardName === cardName &&
+                                    item.benefitName === ben.name &&
+                                    item.date.startsWith(usagePrefix))
+                    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+                totalUsed += used;
+            }
+        });
+        const remain = Math.max(0, totalLimit - totalUsed);
+        return { totalLimit, totalUsed, remain, hasAny };
+    }
+
     function getCardOrder() {
         if (!cardBenefitsData) return [];
         const saved = JSON.parse(localStorage.getItem("card_order_cherry"));
@@ -3104,6 +3158,30 @@
                     <div class="mss-text">${summaryParts.join(' · ') || '설정'}</div>
                     ${showSettingsBtn ? `<button type="button" class="mss-btn" title="이 달 설정" onclick="openMonthCardSettings('${escJs(cardName)}','${escJs(targetMonth)}')">⚙️</button>` : ''}
                 </div>`;
+            }
+
+            // 카드 혜택 한도/사용/잔여 총합 (제공=카드만, 원 단위)
+            if (providerType === '카드') {
+                const totals = computeCardWonTotals(cardName, benefits, targetMonth);
+                if (totals.hasAny) {
+                    const pct = totals.totalLimit > 0
+                        ? Math.min(100, Math.round((totals.totalUsed / totals.totalLimit) * 100))
+                        : 0;
+                    const exhausted = totals.remain <= 0;
+                    html += `<div class="benefit-item${exhausted ? ' disabled' : ''}" style="margin-bottom:10px;border-style:dashed;">
+                        <div class="benefit-item-header">
+                            <span class="benefit-name">📊 카드 혜택 합계</span>
+                            <span class="type type-청구할인">합계</span>
+                        </div>
+                        <div class="benefit-limit-row">
+                            <span>사용: <strong>${totals.totalUsed.toLocaleString()}원</strong> / ${totals.totalLimit.toLocaleString()}원</span>
+                            <span class="benefit-remaining${exhausted ? ' done' : ''}">${exhausted ? '사용 완료 ✅' : '잔여: ' + totals.remain.toLocaleString() + '원'}</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" style="width:${pct}%"></div>
+                        </div>
+                    </div>`;
+                }
             }
 
             html += `
