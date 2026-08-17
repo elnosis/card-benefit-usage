@@ -924,7 +924,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.53</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.54</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1137,7 +1137,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.53';
+            badge.textContent = 'v1.0.54';
             return;
         }
 
@@ -1195,7 +1195,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.53';
+            badge.textContent = 'v1.0.54';
         }
         fetchAppVersion();
 
@@ -1317,6 +1317,8 @@
         let iPeriod = idx('기간');
         let iPerfMonths = idx('실적산정기간');
         let iGrade = idx('등급');
+        let iIntegrated = idx('통합 한도');
+        if (iIntegrated < 0) iIntegrated = idx('통합한도');
 
         // 헤더를 못 찾은 경우: 열 개수로 포맷 추정
         if (iCard < 0) {
@@ -1356,6 +1358,7 @@
             const perfMonthsRaw = iPerfMonths >= 0 ? (cols[iPerfMonths] || '').trim() : '';
             const perfMonths = perfMonthsRaw ? (parseInt(perfMonthsRaw, 10) || 0) : 0;
             const grade = iGrade >= 0 ? (cols[iGrade] || '').trim() : '';
+            const integratedGroup = iIntegrated >= 0 ? (cols[iIntegrated] || '').trim() : '';
 
             // 카드명 자리에 발급처만 들어온 잘못된 매핑 방지
             if (!cardName || !tier || !benefitName) continue;
@@ -1374,7 +1377,8 @@
                 provider: provider,
                 period: period,
                 perfMonths: perfMonths,
-                grade: grade
+                grade: grade,
+                integratedGroup: integratedGroup
             });
         }
 
@@ -2101,12 +2105,12 @@
 
             benefits.forEach(ben => {
                 // —— 통합 한도: 같은 카드·같은 한도 문자열은 한 줄로 ——
-                if (isIntegratedLimit(ben.limit)) {
-                    const ikey = cardName + '|' + ben.limit;
+                if (isIntegratedLimit(ben)) {
+                    const ikey = cardName + '|' + getIntegratedGroupKey(ben);
                     if (seenIntegrated.has(ikey)) return;
                     seenIntegrated.add(ikey);
 
-                    const group = benefits.filter(b => b.limit === ben.limit);
+                    const group = benefits.filter(b => isIntegratedLimit(b) && getIntegratedGroupKey(b) === getIntegratedGroupKey(ben));
                     let groupForFilter = group;
                     if (applyThreeMonthFilter === true && applyUsageFilter) {
                         groupForFilter = group.filter(b =>
@@ -2593,8 +2597,21 @@
         return '원';
     }
 
-    function isIntegratedLimit(limitStr) {
-        return limitStr && String(limitStr).includes('통합');
+    function isIntegratedLimit(benOrLimit) {
+        // 혜택 객체: integratedGroup 우선 / 구버전: 한도 문자열에 '통합'
+        if (benOrLimit && typeof benOrLimit === 'object') {
+            if (benOrLimit.integratedGroup && String(benOrLimit.integratedGroup).trim()) return true;
+            return !!(benOrLimit.limit && String(benOrLimit.limit).includes('통합'));
+        }
+        return !!(benOrLimit && String(benOrLimit).includes('통합'));
+    }
+
+    function getIntegratedGroupKey(ben) {
+        if (!ben) return '';
+        const g = (ben.integratedGroup || '').trim();
+        if (g) return g;
+        // 구버전 호환: 한도 문자열 자체
+        return (ben.limit || '').trim();
     }
 
     /* 결제금액 + 할인율/금액 식으로 혜택 수치 계산 */
@@ -3053,8 +3070,8 @@
                 const integratedGroups = {}; // limitStr -> [benefits]
                 const normalBenefits = [];
                 benefits.forEach(ben => {
-                    if (isIntegratedLimit(ben.limit)) {
-                        const key = ben.limit;
+                    if (isIntegratedLimit(ben)) {
+                        const key = getIntegratedGroupKey(ben);
                         if (!integratedGroups[key]) integratedGroups[key] = [];
                         integratedGroups[key].push(ben);
                     } else {
