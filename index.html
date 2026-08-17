@@ -624,6 +624,48 @@
             white-space: nowrap;
         }
 
+        .month-settings-summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 12px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            line-height: 1.35;
+        }
+
+        .month-settings-summary .mss-text {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .month-settings-summary .mss-text strong {
+            color: var(--text-color);
+            font-weight: 600;
+        }
+
+        .mss-btn {
+            flex-shrink: 0;
+            border: none;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            width: 34px;
+            height: 34px;
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .benefit-list {
             display: flex;
             flex-direction: column;
@@ -823,6 +865,7 @@
         }
 
         .type-discount, .type-청구할인, .type-현장할인 { background-color: #ffebee; color: #d32f2f; }
+        .type-카드사혜택, .type-company { background-color: #e3f2fd; color: #1565c0; }
         .type-point, .type-적립 { background-color: #e8f5e9; color: #2e7d32; }
         .type-cashback, .type-기타 { background-color: #e3f2fd; color: #1976d2; }
 
@@ -881,7 +924,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.48</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.52</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -914,6 +957,21 @@
         <div class="modal-footer">
             <button class="modal-btn modal-btn-secondary" onclick="closeCardDefaultsModal()">취소</button>
             <button class="modal-btn modal-btn-primary" onclick="saveCardDefaults()">저장하기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 월별 실적/옵션/등급 설정 팝업 -->
+<div class="modal-overlay" id="month-card-settings-modal">
+    <div class="modal-content" style="max-width:400px;">
+        <div class="modal-header">
+            <h2 id="month-card-settings-title">이 달 설정</h2>
+            <button class="modal-close" onclick="closeMonthCardSettings()">×</button>
+        </div>
+        <div class="modal-body" id="month-card-settings-body"></div>
+        <div class="modal-footer">
+            <button class="modal-btn modal-btn-secondary" onclick="closeMonthCardSettings()">취소</button>
+            <button class="modal-btn modal-btn-primary" onclick="saveMonthCardSettings()">저장</button>
         </div>
     </div>
 </div>
@@ -1037,7 +1095,7 @@
                 </div>
                 <div class="form-group">
                     <label>날짜</label>
-                    <input type="date" class="form-control" id="form-date" required>
+                    <input type="date" class="form-control" id="form-date" required onchange="updateBenefitOptions()">
                 </div>
                 <div class="form-group" id="form-payment-group">
                     <label>결제 금액 (원)</label>
@@ -1079,7 +1137,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.48';
+            badge.textContent = 'v1.0.52';
             return;
         }
 
@@ -1105,8 +1163,13 @@
     // performanceData: { "2026-08": { "카드명": "30만원", ... }, ... }  // 선택한 전월 실적 티어
     let performanceData = JSON.parse(localStorage.getItem('card_picker_cherry_perf')) || {};
 
-    // cardDefaults: { "카드명": { defaultTier: "30만원", selectedOptions: ["1"] } }
+    // cardDefaults: 기본값 { defaultTier, selectedOptionBenefits, selectedGrades, linkedCompanyProduct }
     let cardDefaults = JSON.parse(localStorage.getItem('card_picker_cherry_defaults')) || {};
+
+    // 월별 옵션: { "2026-08": { "카드명": { "1": "혜택명", ... } } }
+    let monthlyOptions = JSON.parse(localStorage.getItem('card_picker_cherry_monthly_options')) || {};
+    // 월별 등급: { "2026-08": { "카드명": ["VIP", "청년"] } }
+    let monthlyGrades = JSON.parse(localStorage.getItem('card_picker_cherry_monthly_grades')) || {};
 
     // cardIssuers: { "카드명": "삼성카드", ... }
     let cardIssuers = JSON.parse(localStorage.getItem('card_picker_cherry_issuers')) || {};
@@ -1132,7 +1195,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.48';
+            badge.textContent = 'v1.0.52';
         }
         fetchAppVersion();
 
@@ -1351,6 +1414,8 @@
             benefitData: benefitData,
             performanceData: performanceData,
             cardDefaults: cardDefaults,
+            monthlyOptions: monthlyOptions,
+            monthlyGrades: monthlyGrades,
             cardIssuers: cardIssuers,
             cardOrder: JSON.parse(localStorage.getItem("card_order_cherry")) || []
         };
@@ -1389,6 +1454,14 @@
                         cardDefaults = imported.cardDefaults;
                         localStorage.setItem('card_picker_cherry_defaults', JSON.stringify(cardDefaults));
                     }
+                    if (imported.monthlyOptions) {
+                        monthlyOptions = imported.monthlyOptions;
+                        localStorage.setItem('card_picker_cherry_monthly_options', JSON.stringify(monthlyOptions));
+                    }
+                    if (imported.monthlyGrades) {
+                        monthlyGrades = imported.monthlyGrades;
+                        localStorage.setItem('card_picker_cherry_monthly_grades', JSON.stringify(monthlyGrades));
+                    }
                     if (imported.cardIssuers) {
                         cardIssuers = imported.cardIssuers;
                         localStorage.setItem('card_picker_cherry_issuers', JSON.stringify(cardIssuers));
@@ -1414,10 +1487,52 @@
         localStorage.setItem('card_picker_cherry_data', JSON.stringify(benefitData));
         localStorage.setItem('card_picker_cherry_perf', JSON.stringify(performanceData));
         localStorage.setItem('card_picker_cherry_defaults', JSON.stringify(cardDefaults));
+        localStorage.setItem('card_picker_cherry_monthly_options', JSON.stringify(monthlyOptions));
+        localStorage.setItem('card_picker_cherry_monthly_grades', JSON.stringify(monthlyGrades));
         localStorage.setItem('card_picker_cherry_issuers', JSON.stringify(cardIssuers));
         if (cardBenefitsData) {
             localStorage.setItem('card_picker_cherry_benefits', JSON.stringify(cardBenefitsData));
         }
+    }
+
+    function getMonthOptions(month, cardName) {
+        const m = (monthlyOptions[month] || {})[cardName];
+        if (m && typeof m === 'object') return m;
+        return (cardDefaults[cardName] || {}).selectedOptionBenefits || {};
+    }
+
+    function getMonthGrades(month, cardName) {
+        const m = (monthlyGrades[month] || {})[cardName];
+        if (Array.isArray(m)) return m;
+        return (cardDefaults[cardName] || {}).selectedGrades || [];
+    }
+
+    function changeMonthOption(cardName, optKey, benefitName) {
+        const selectedMonth = document.getElementById('month-spinner').value;
+        if (!selectedMonth || selectedMonth === 'ALL') return;
+        if (!monthlyOptions[selectedMonth]) monthlyOptions[selectedMonth] = {};
+        if (!monthlyOptions[selectedMonth][cardName]) monthlyOptions[selectedMonth][cardName] = { ...getMonthOptions(selectedMonth, cardName) };
+        if (benefitName) monthlyOptions[selectedMonth][cardName][optKey] = benefitName;
+        else delete monthlyOptions[selectedMonth][cardName][optKey];
+        saveData();
+        renderMonthStatus(selectedMonth);
+    }
+
+    function changeMonthGrade(cardName, grade, checked) {
+        const selectedMonth = document.getElementById('month-spinner').value;
+        if (!selectedMonth || selectedMonth === 'ALL') return;
+        if (!monthlyGrades[selectedMonth]) monthlyGrades[selectedMonth] = {};
+        let list = Array.isArray(monthlyGrades[selectedMonth][cardName])
+            ? [...monthlyGrades[selectedMonth][cardName]]
+            : [...getMonthGrades(selectedMonth, cardName)];
+        if (checked) {
+            if (!list.includes(grade)) list.push(grade);
+        } else {
+            list = list.filter(g => g !== grade);
+        }
+        monthlyGrades[selectedMonth][cardName] = list;
+        saveData();
+        renderMonthStatus(selectedMonth);
     }
 
     /* --- 설정 모달 --- */
@@ -1429,6 +1544,142 @@
         minute: (s.minute != null && !isNaN(s.minute)) ? Number(s.minute) : 0
     }));
     let notifyLastFired = JSON.parse(localStorage.getItem('card_picker_cherry_notify_fired')) || {};
+
+
+    let _monthSettingsCtx = null; // { cardName, month }
+
+    function openMonthCardSettings(cardName, month) {
+        _monthSettingsCtx = { cardName, month };
+        const tiers = cardBenefitsData[cardName];
+        if (!tiers) return;
+        const providerType = getCardProviderType(cardName);
+        const defaults = cardDefaults[cardName] || {};
+        const tierKeys = getTierKeys(tiers);
+        const monthPerf = performanceData[month] || {};
+        let selectedTier = monthPerf[cardName] || defaults.defaultTier || tierKeys[0];
+        if (!tierKeys.includes(selectedTier)) selectedTier = tierKeys[0];
+        const selectedOptionBenefits = getMonthOptions(month, cardName);
+
+        const optionMapUi = {};
+        Object.values(tiers).forEach(list => {
+            (list || []).forEach(b => {
+                if (b.option && b.option.trim()) {
+                    if (!optionMapUi[b.option]) optionMapUi[b.option] = new Set();
+                    optionMapUi[b.option].add(b.name);
+                }
+            });
+        });
+        const gradeSetUi = new Set();
+        Object.values(tiers).forEach(list => {
+            (list || []).forEach(b => {
+                if (b.grade && String(b.grade).trim()) gradeSetUi.add(String(b.grade).trim());
+            });
+        });
+        const linkedProduct = defaults.linkedCompanyProduct || '';
+        const companyGradeSet = new Set();
+        if (linkedProduct && cardBenefitsData[linkedProduct]) {
+            Object.values(cardBenefitsData[linkedProduct]).forEach(list => {
+                (list || []).forEach(b => {
+                    if (b.grade && String(b.grade).trim()) companyGradeSet.add(String(b.grade).trim());
+                });
+            });
+        }
+
+        document.getElementById('month-card-settings-title').textContent =
+            formatCardLabel(cardName).replace(/^💳\s*/, '') + ' · ' + month;
+
+        let body = '';
+        if (providerType !== '멤버십사' && providerType !== '카드사') {
+            body += `<div class="default-row" style="margin-bottom:12px;">
+                <label>전월 실적</label>
+                <select class="form-control" id="mcs-tier">`;
+            tierKeys.forEach(tk => {
+                body += `<option value="${tk}" ${tk === selectedTier ? 'selected' : ''}>${formatTierLabel(tk)}</option>`;
+            });
+            body += `</select></div>`;
+        }
+
+        Object.keys(optionMapUi).sort().forEach(opt => {
+            const names = Array.from(optionMapUi[opt]);
+            const cur = selectedOptionBenefits[opt] || '';
+            body += `<div class="default-row" style="margin-bottom:12px;">
+                <label>옵션 ${opt}</label>
+                <select class="form-control mcs-option" data-option="${opt}">
+                    <option value="">선택 안 함</option>`;
+            names.forEach(n => {
+                body += `<option value="${n.replace(/"/g, '&quot;')}" ${n === cur ? 'selected' : ''}>${getBenefitEmoji(n)} ${n}</option>`;
+            });
+            body += `</select></div>`;
+        });
+
+        if (gradeSetUi.size > 0) {
+            const curGrades = getMonthGrades(month, cardName);
+            body += `<div style="margin-bottom:12px;"><div style="font-size:0.85rem;font-weight:600;margin-bottom:6px;">등급</div>`;
+            Array.from(gradeSetUi).sort().forEach(g => {
+                const checked = curGrades.includes(g) ? 'checked' : '';
+                body += `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:0.85rem;cursor:pointer;">
+                    <input type="checkbox" class="mcs-grade" value="${g}" ${checked}> ${g}
+                </label>`;
+            });
+            body += `</div>`;
+        }
+
+        if (companyGradeSet.size > 0 && linkedProduct) {
+            const curCompanyGrades = getMonthGrades(month, linkedProduct);
+            body += `<div style="margin-bottom:12px;"><div style="font-size:0.85rem;font-weight:600;margin-bottom:6px;">${linkedProduct} 등급</div>`;
+            Array.from(companyGradeSet).sort().forEach(g => {
+                const checked = curCompanyGrades.includes(g) ? 'checked' : '';
+                body += `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:0.85rem;cursor:pointer;">
+                    <input type="checkbox" class="mcs-company-grade" value="${g}" ${checked}> ${g}
+                </label>`;
+            });
+            body += `</div>`;
+        }
+
+        if (!body) body = '<div style="color:var(--text-muted);font-size:0.85rem;">설정할 항목이 없습니다.</div>';
+        document.getElementById('month-card-settings-body').innerHTML = body;
+        document.getElementById('month-card-settings-modal').classList.add('show');
+    }
+
+    function closeMonthCardSettings() {
+        document.getElementById('month-card-settings-modal').classList.remove('show');
+        _monthSettingsCtx = null;
+    }
+
+    function saveMonthCardSettings() {
+        if (!_monthSettingsCtx) return;
+        const { cardName, month } = _monthSettingsCtx;
+        const defaults = cardDefaults[cardName] || {};
+        const linkedProduct = defaults.linkedCompanyProduct || '';
+
+        const tierSel = document.getElementById('mcs-tier');
+        if (tierSel) {
+            if (!performanceData[month]) performanceData[month] = {};
+            performanceData[month][cardName] = tierSel.value;
+        }
+
+        const optMap = {};
+        document.querySelectorAll('#month-card-settings-body .mcs-option').forEach(sel => {
+            const opt = sel.getAttribute('data-option');
+            if (sel.value) optMap[opt] = sel.value;
+        });
+        if (!monthlyOptions[month]) monthlyOptions[month] = {};
+        monthlyOptions[month][cardName] = optMap;
+
+        const grades = Array.from(document.querySelectorAll('#month-card-settings-body .mcs-grade:checked')).map(c => c.value);
+        if (!monthlyGrades[month]) monthlyGrades[month] = {};
+        monthlyGrades[month][cardName] = grades;
+
+        if (linkedProduct) {
+            const cgrades = Array.from(document.querySelectorAll('#month-card-settings-body .mcs-company-grade:checked')).map(c => c.value);
+            monthlyGrades[month][linkedProduct] = cgrades;
+        }
+
+        saveData();
+        closeMonthCardSettings();
+        renderMonthStatus(month);
+    }
+
 
     function openCardDefaultsModal() {
         renderCardDefaultsForm();
@@ -1604,20 +1855,20 @@
             // 카드: 옵션 혜택 선택 / 카드사·멤버십: 등급 해당 여부
             if (isCompanyOrMembership && gradeList.length > 0) {
                 html += `<div class="option-group">
-                    <div class="option-group-title">등급 — 해당하는 등급 선택 (복수 가능)</div>`;
+                    <div class="option-group-title">기본 등급 — 해당하는 등급 선택 (복수 가능)</div>`;
                 gradeList.forEach(g => {
                     const checked = selectedGrades.includes(g) ? 'checked' : '';
                     html += `<label style="display:flex;align-items:center;gap:8px;margin:6px 0;font-size:0.85rem;cursor:pointer;">
                         <input type="checkbox" class="grade-check" value="${g}" ${checked}> ${g}
                     </label>`;
                 });
-                html += `<div style="font-size:0.72rem;color:var(--text-muted);">등급 없는 기본 혜택은 항상 표시됩니다.</div></div>`;
+                html += `<div style="font-size:0.72rem;color:var(--text-muted);">설정값은 기본값이며, 혜택 사용 현황에서 월별로 바꿀 수 있습니다. 등급 없는 혜택은 항상 표시됩니다.</div></div>`;
             } else if (hasOptions) {
                 Object.keys(optionMap).sort().forEach(opt => {
                     const names = Array.from(optionMap[opt]);
                     const selectedName = selectedOptionBenefits[opt] || '';
                     html += `<div class="option-group">
-                        <div class="option-group-title">옵션 ${opt} — 혜택 중 하나 선택</div>
+                        <div class="option-group-title">기본 옵션 ${opt} — 혜택 중 하나 선택</div>
                         <select class="form-control option-benefit-select" data-option="${opt}" style="margin-top:4px;">
                             <option value="">선택 안 함</option>`;
                     names.forEach(n => {
@@ -1818,13 +2069,11 @@
             let selectedTier = monthPerf[cardName] || defaults.defaultTier || tierKeys[0];
             if (!tierKeys.includes(selectedTier)) selectedTier = tierKeys[0];
 
-            const selectedOptionBenefits = defaults.selectedOptionBenefits || {};
-            let benefits = getBenefitsForTier(tiers, selectedTier).filter(b => {
-                if (!b.option || !b.option.trim()) return true;
-                const chosen = selectedOptionBenefits[b.option];
-                if (!chosen) return false;
-                return b.name === chosen;
-            });
+            let benefits = filterBenefitsByOption(
+                getBenefitsForTier(tiers, selectedTier),
+                cardName,
+                month
+            );
             const linkedProduct = defaults.linkedCompanyProduct || '';
             const providerTypeRem = getCardProviderType(cardName);
             if (providerTypeRem !== '카드사' && providerTypeRem !== '멤버십사' && linkedProduct && cardBenefitsData[linkedProduct]) {
@@ -1840,9 +2089,9 @@
                         const avg = getAveragePerformanceAmount(cardName, month, n);
                         if (need <= avg) {
                             const g = (b.grade || '').trim();
-                            const grades = (cardDefaults[linkedProduct] || {}).selectedGrades || [];
+                            const grades = getMonthGrades(month, linkedProduct);
                             if (g && !grades.includes(g)) return;
-                            benefits.push(b);
+                            benefits.push({ ...b, _fromCompany: linkedProduct });
                         }
                     });
                 });
@@ -2035,12 +2284,14 @@
             const remainText = r.isUnlimited
                 ? `사용 ${r.used.toLocaleString()}${r.unit} · 한도 없음`
                 : `잔여 ${r.remain.toLocaleString()}${r.unit} / ${r.limitNum.toLocaleString()}${r.unit}`;
+            const companyName = r.benefit?._fromCompany || '';
+            const isCompanyRem = (r.benefit?.provider || '') === '카드사' || !!companyName;
             const title = r.isIntegrated
                 ? `🔗 통합 한도 · ${(r.names || []).map(n => getBenefitEmoji(n) + ' ' + n).join(' · ')}`
-                : `${getBenefitEmoji(r.benefit.name)} ${r.benefit.name}`;
+                : `${companyName ? '[' + companyName + '] ' : ''}${getBenefitEmoji(r.benefit.name)} ${r.benefit.name}`;
             const meta = r.isIntegrated
                 ? `${r.benefit.rate || '-'} · 통합`
-                : `${r.benefit.rate || '-'} · ${r.benefit.type || ''}`;
+                : `${r.benefit.rate || '-'} · ${isCompanyRem ? '카드사혜택' : (r.benefit.type || '')}`;
             // 연간 혜택: 사용/잔여 표기에 연·년 표시
             const isAnnual = (r.benefit?.period || '').trim() === '연간';
             let remainDisplay = remainText;
@@ -2433,12 +2684,26 @@
     }
 
     /* 등급 필터: 등급 없으면 기본 혜택, 있으면 selectedGrades에 포함된 것만 */
-    function filterBenefitsByGrade(benefits, cardName) {
-        const selected = (cardDefaults[cardName] || {}).selectedGrades || [];
+    function filterBenefitsByGrade(benefits, cardName, month) {
+        const selected = month
+            ? getMonthGrades(month, cardName)
+            : ((cardDefaults[cardName] || {}).selectedGrades || []);
         return (benefits || []).filter(b => {
             const g = (b.grade || '').trim();
             if (!g) return true;
             return selected.includes(g);
+        });
+    }
+
+    function filterBenefitsByOption(benefits, cardName, month) {
+        const selectedOptionBenefits = month
+            ? getMonthOptions(month, cardName)
+            : ((cardDefaults[cardName] || {}).selectedOptionBenefits || {});
+        return (benefits || []).filter(b => {
+            if (!b.option || !b.option.trim()) return true;
+            const chosen = selectedOptionBenefits[b.option];
+            if (!chosen) return false;
+            return b.name === chosen;
         });
     }
 
@@ -2647,15 +2912,13 @@
             let selectedTier = monthPerf[cardName] || defaults.defaultTier || tierKeys[0];
             if (!tierKeys.includes(selectedTier)) selectedTier = tierKeys[0];
 
-            // 선택된 옵션 혜택: 옵션 그룹별 선택된 혜택명만 표시
-            const selectedOptionBenefits = defaults.selectedOptionBenefits || {};
-            let benefits = getBenefitsForTier(tiers, selectedTier).filter(b => {
-                if (!b.option || !b.option.trim()) return true;
-                const chosen = selectedOptionBenefits[b.option];
-                // 옵션 선택을 안 했으면 해당 옵션 혜택 전부 숨김 (전월실적으로 받을 수 있는 것만 명확히)
-                if (!chosen) return false;
-                return b.name === chosen;
-            });
+            // 월별 옵션 (없으면 설정 기본값)
+            const selectedOptionBenefits = getMonthOptions(targetMonth, cardName);
+            let benefits = filterBenefitsByOption(
+                getBenefitsForTier(tiers, selectedTier),
+                cardName,
+                targetMonth
+            );
 
             const isCompanyOrMembership = providerType === '카드사' || providerType === '멤버십사';
 
@@ -2664,6 +2927,7 @@
             if (!isCompanyOrMembership && linkedProduct && cardBenefitsData[linkedProduct]) {
                 const companyTiers = cardBenefitsData[linkedProduct];
                 const seenC = new Set();
+                const grades = getMonthGrades(targetMonth, linkedProduct);
                 Object.keys(companyTiers).forEach(tk => {
                     (companyTiers[tk] || []).forEach(b => {
                         const key = b.name + '|' + (b.limit || '');
@@ -2674,7 +2938,6 @@
                         const avg = getAveragePerformanceAmount(cardName, targetMonth, n);
                         if (need <= avg) {
                             const g = (b.grade || '').trim();
-                            const grades = (cardDefaults[linkedProduct] || {}).selectedGrades || [];
                             if (g && !grades.includes(g)) return;
                             benefits.push({ ...b, _fromCompany: linkedProduct, _avgPerf: avg, _perfMonths: n });
                         }
@@ -2682,16 +2945,15 @@
                 });
             }
 
-            // 카드사/멤버십 단독: 실적 수정 없음, 등급 필터 적용
+            // 멤버십 단독: 실적 수정 없음, 월별 등급 필터
             if (isCompanyOrMembership) {
-                benefits = filterBenefitsByGrade(getBenefitsForTier(tiers, '0만원'), cardName);
-                // 등급 외 티어에 있는 혜택도 등급만 맞으면 포함
+                benefits = filterBenefitsByGrade(getBenefitsForTier(tiers, '0만원'), cardName, targetMonth);
                 const more = [];
                 Object.keys(tiers).forEach(tk => {
                     if (tk === '0만원') return;
                     more.push(...(tiers[tk] || []));
                 });
-                benefits = filterBenefitsByGrade(benefits.concat(more), cardName);
+                benefits = filterBenefitsByGrade(benefits.concat(more), cardName, targetMonth);
                 // 이름 중복 제거
                 const seenN = new Set();
                 benefits = benefits.filter(b => {
@@ -2717,30 +2979,66 @@
                 </div>
             `;
 
-            if (providerType === '멤버십사') {
-                // 멤버십사는 전월 실적 영역 없음
-            } else if (providerType === '카드사') {
-                html += `
-                <div class="performance-box">
-                    <div class="performance-top-row">
-                        <span class="performance-label">전월 실적</span>
-                        <span style="font-size:0.85rem;color:var(--text-muted);">수정 불가 · 연결 카드 평균 실적 적용</span>
-                    </div>
-                </div>`;
-            } else {
-                html += `
-                <div class="performance-box">
-                    <div class="performance-top-row">
-                        <span class="performance-label">전월 실적</span>
-                        <select class="spinner-select" onchange="changePerformanceTier('${cardName.replace(/'/g, "\\'")}', this.value)">
-            `;
-                tierKeys.forEach(t => {
-                    const selected = t === selectedTier ? 'selected' : '';
-                    html += `<option value="${t}" ${selected}>${formatTierLabel(t)}</option>`;
+            // 한 줄 요약 + 설정 버튼
+            const optionMapUi = {};
+            Object.values(tiers).forEach(list => {
+                (list || []).forEach(b => {
+                    if (b.option && b.option.trim()) {
+                        if (!optionMapUi[b.option]) optionMapUi[b.option] = new Set();
+                        optionMapUi[b.option].add(b.name);
+                    }
                 });
-                html += `
-                        </select>
-                    </div>
+            });
+            const gradeSetUi = new Set();
+            Object.values(tiers).forEach(list => {
+                (list || []).forEach(b => {
+                    if (b.grade && String(b.grade).trim()) gradeSetUi.add(String(b.grade).trim());
+                });
+            });
+            const companyGradeSet = new Set();
+            if (linkedProduct && cardBenefitsData[linkedProduct]) {
+                Object.values(cardBenefitsData[linkedProduct]).forEach(list => {
+                    (list || []).forEach(b => {
+                        if (b.grade && String(b.grade).trim()) companyGradeSet.add(String(b.grade).trim());
+                    });
+                });
+            }
+
+            const summaryParts = [];
+            if (providerType === '멤버십사') {
+                // 실적 없음
+            } else if (providerType === '카드사') {
+                summaryParts.push('전월 실적 <strong>연결 카드 평균</strong>');
+            } else {
+                summaryParts.push('전월 실적 <strong>' + formatTierLabel(selectedTier) + '</strong>');
+            }
+            Object.keys(optionMapUi).sort().forEach(opt => {
+                const cur = selectedOptionBenefits[opt] || '';
+                summaryParts.push('옵션' + opt + ' <strong>' + (cur || '선택 안 함') + '</strong>');
+            });
+            if (gradeSetUi.size > 0) {
+                const curGrades = getMonthGrades(targetMonth, cardName);
+                summaryParts.push('등급 <strong>' + (curGrades.length ? curGrades.join(', ') : '없음') + '</strong>');
+            }
+            if (companyGradeSet.size > 0) {
+                const curCompanyGrades = getMonthGrades(targetMonth, linkedProduct);
+                summaryParts.push((linkedProduct || '카드사') + ' 등급 <strong>' + (curCompanyGrades.length ? curCompanyGrades.join(', ') : '없음') + '</strong>');
+            }
+
+            const needSettings = providerType !== '카드사' && (
+                providerType !== '멤버십사' || Object.keys(optionMapUi).length > 0 || gradeSetUi.size > 0 || companyGradeSet.size > 0
+            );
+            // 멤버십도 등급 설정 필요, 일반 카드는 실적/옵션, 연결 등급
+            const showSettingsBtn = providerType !== '카드사' && (
+                providerType === '멤버십사'
+                    ? (gradeSetUi.size > 0 || Object.keys(optionMapUi).length > 0)
+                    : true
+            );
+
+            if (summaryParts.length > 0 || showSettingsBtn) {
+                html += `<div class="month-settings-summary">
+                    <div class="mss-text">${summaryParts.join(' · ') || '설정'}</div>
+                    ${showSettingsBtn ? `<button type="button" class="mss-btn" title="이 달 설정" onclick="openMonthCardSettings('${escJs(cardName)}','${escJs(targetMonth)}')">⚙️</button>` : ''}
                 </div>`;
             }
 
@@ -2834,19 +3132,22 @@
                     const isUnlimited = !limitNum;
                     const remain = isUnlimited ? null : Math.max(0, limitNum - used);
                     const percent = isUnlimited ? 0 : Math.min(100, Math.round((used / limitNum) * 100));
-                    const typeClass = 'type-' + (ben.type || 'discount').replace(/\s/g, '');
+                    const isCompanyBen = !!(ben._fromCompany || ben.provider === '카드사');
+                    const typeLabel = isCompanyBen ? '카드사혜택' : (ben.type || '');
+                    const typeClass = isCompanyBen ? 'type-카드사혜택' : ('type-' + (ben.type || 'discount').replace(/\s/g, ''));
                     const isExhausted = !isUnlimited && remain === 0;
                     const emoji = getBenefitEmoji(ben.name);
                     const disabledClass = isExhausted ? ' disabled' : '';
+                    const companyPrefix = ben._fromCompany ? '[' + ben._fromCompany + '] ' : (isCompanyBen ? '' : '');
 
                     html += `
                         <div class="benefit-item clickable${disabledClass}"
                             onclick="openBenefitDetail('${escJs(cardName)}','${escJs(ben.name)}','${escJs(targetMonth)}')">
                             <div class="benefit-item-header">
-                                <span class="benefit-name">${emoji} ${ben.name}</span>
-                                <span class="type ${typeClass}">${ben.type || ''}</span>
+                                <span class="benefit-name">${companyPrefix}${emoji} ${ben.name}</span>
+                                <span class="type ${typeClass}">${typeLabel}</span>
                             </div>
-                            <div class="benefit-meta">${ben.rate || ''}${ben.option ? ' (옵션 ' + ben.option + ')' : ''}${ben.grade ? ' · ' + ben.grade : ''}</div>
+                            <div class="benefit-meta">${ben.rate || ''}${ben.option ? ' (옵션 ' + ben.option + ')' : ''}${ben.grade ? ' · ' + ben.grade : ''}${!isCompanyBen && ben.type ? '' : (isCompanyBen && ben.type ? ' · ' + ben.type : '')}</div>
                     `;
 
                     const isAnnualBen = (ben.period || '').trim() === '연간';
@@ -2960,22 +3261,29 @@
             return;
         }
 
-        const benefitMap = new Map();
+        const dateVal = document.getElementById('form-date')?.value || '';
+        const monthKey = dateVal ? dateVal.slice(0, 7) : getCurrentYearMonth();
+
+        let list = [];
         Object.values(cardBenefitsData[cardName]).forEach(benefits => {
-            benefits.forEach(b => {
-                if (!benefitMap.has(b.name)) {
-                    benefitMap.set(b.name, { ...b, _labelPrefix: '' });
-                }
-            });
+            benefits.forEach(b => list.push({ ...b, _labelPrefix: '' }));
+        });
+        list = filterBenefitsByOption(list, cardName, monthKey);
+        list = filterBenefitsByGrade(list, cardName, monthKey);
+
+        const benefitMap = new Map();
+        list.forEach(b => {
+            if (!benefitMap.has(b.name)) benefitMap.set(b.name, b);
         });
         const linked = getLinkedCompanyProduct(cardName);
         if (linked && cardBenefitsData[linked]) {
+            let clist = [];
             Object.values(cardBenefitsData[linked]).forEach(benefits => {
-                benefits.forEach(b => {
-                    if (!benefitMap.has(b.name)) {
-                        benefitMap.set(b.name, { ...b, _labelPrefix: `[${linked}] ` });
-                    }
-                });
+                benefits.forEach(b => clist.push({ ...b, _labelPrefix: `[${linked}] ` }));
+            });
+            clist = filterBenefitsByGrade(clist, linked, monthKey);
+            clist.forEach(b => {
+                if (!benefitMap.has(b.name)) benefitMap.set(b.name, b);
             });
         }
 
