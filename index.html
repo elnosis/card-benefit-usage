@@ -924,7 +924,7 @@
 
 <!-- 안드로이드 앱바 스타일 헤더 (전체 폭) -->
 <header>
-    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.54</span></h1>
+    <h1>🍒 카드 피커 체리 <span class="version-badge" id="app-version">v1.0.55</span></h1>
     
     <div class="header-actions">
         <button class="options-btn" onclick="openRemainingList(true)" aria-label="이 달의 남은 혜택" title="이 달의 남은 혜택">🔍</button>
@@ -1137,7 +1137,7 @@
 
         // 서비스 워커가 아직 제어하지 않으면 기본값 유지
         if (!navigator.serviceWorker.controller) {
-            badge.textContent = 'v1.0.54';
+            badge.textContent = 'v1.0.55';
             return;
         }
 
@@ -1195,7 +1195,7 @@
         // 버전 배지 강제 표시
         const badge = document.getElementById('app-version');
         if (badge && !badge.textContent.trim()) {
-            badge.textContent = 'v1.0.54';
+            badge.textContent = 'v1.0.55';
         }
         fetchAppVersion();
 
@@ -2300,7 +2300,7 @@
             const isAnnual = (r.benefit?.period || '').trim() === '연간';
             let remainDisplay = remainText;
             if (isAnnual && !r.isUnlimited) {
-                remainDisplay = `사용: 연 ${r.used.toLocaleString()}${r.unit} / ${r.limitNum.toLocaleString()}${r.unit}<br>잔여: ${r.remain.toLocaleString()}${r.unit} / 년`;
+                remainDisplay = `사용: 연 ${r.used.toLocaleString()}${r.unit} / ${r.limitNum.toLocaleString()}${r.unit} · 잔여: ${r.remain.toLocaleString()}${r.unit} / 년`;
             } else if (isAnnual && r.isUnlimited) {
                 remainDisplay = `사용: 연 ${r.used.toLocaleString()}${r.unit} · 한도 없음`;
             }
@@ -3082,8 +3082,10 @@
                 // 통합 한도 그룹 렌더
                 Object.keys(integratedGroups).forEach(limitKey => {
                     const group = integratedGroups[limitKey];
-                    const limitNum = parseLimitAmount(limitKey);
-                    const unit = getUnitLabel(group[0].rate, limitKey);
+                    // 한도 금액/횟수는 한도 열 값 사용 (통합 그룹 키가 아님)
+                    const limitStr = group[0].limit || '';
+                    const limitNum = parseLimitAmount(limitStr);
+                    const unit = getUnitLabel(group[0].rate, limitStr);
                     const names = group.map(b => b.name);
                     const usagePrefix = getUsagePeriodPrefix(targetMonth, group[0].period);
                     const used = benefitData
@@ -3105,15 +3107,16 @@
                         <div class="benefit-meta">${group.map(b => getBenefitEmoji(b.name) + ' ' + b.name).join(' · ')}</div>`;
                     // 통합 요약은 클릭 없음 — 아래 개별 혜택 클릭
 
+                    const isAnnualGroup = (group[0].period || '').trim() === '연간';
                     if (isUnlimited) {
                         html += `<div class="benefit-limit-row">
-                            <span>사용: <strong>${used.toLocaleString()}${unit}</strong></span>
+                            <span>사용: <strong>${isAnnualGroup ? '연 ' : ''}${used.toLocaleString()}${unit}</strong></span>
                             <span class="no-limit-text">한도 없음</span>
                         </div>`;
                     } else {
                         html += `<div class="benefit-limit-row">
-                            <span>사용: <strong>${used.toLocaleString()}${unit}</strong> / ${limitNum.toLocaleString()}${unit}</span>
-                            <span class="benefit-remaining${isExhausted ? ' done' : ''}">${isExhausted ? '사용 완료 ✅' : '잔여: ' + remain.toLocaleString() + unit}</span>
+                            <span>사용: <strong>${isAnnualGroup ? '연 ' : ''}${used.toLocaleString()}${unit}</strong> / ${limitNum.toLocaleString()}${unit}</span>
+                            <span class="benefit-remaining${isExhausted ? ' done' : ''}">${isExhausted ? '사용 완료 ✅' : '잔여: ' + remain.toLocaleString() + unit + (isAnnualGroup ? ' / 년' : '')}</span>
                         </div>
                         <div class="progress-bar-bg">
                             <div class="progress-bar-fill" style="width:${percent}%"></div>
@@ -3177,9 +3180,9 @@
                         `;
                     } else if (isAnnualBen) {
                         html += `
-                            <div class="benefit-limit-row" style="flex-direction:column;align-items:stretch;gap:4px;">
+                            <div class="benefit-limit-row">
                                 <span>사용: <strong>연 ${used.toLocaleString()}${unit}</strong> / ${limitNum.toLocaleString()}${unit}</span>
-                                <span class="benefit-remaining${isExhausted ? ' done' : ''}" style="text-align:left;">${isExhausted ? '사용 완료 ✅' : '잔여: ' + remain.toLocaleString() + unit + ' / 년'}</span>
+                                <span class="benefit-remaining${isExhausted ? ' done' : ''}">${isExhausted ? '사용 완료 ✅' : '잔여: ' + remain.toLocaleString() + unit + ' / 년'}</span>
                             </div>
                             <div class="progress-bar-bg">
                                 <div class="progress-bar-fill" style="width:${percent}%"></div>
